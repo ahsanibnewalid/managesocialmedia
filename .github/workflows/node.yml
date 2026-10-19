@@ -15,4 +15,7 @@ jobs:
           cache: npm
       - run: npm install
       - run: node --check server/index.js
+      - run: node --check server/publishing-queue.js
+      - run: node --check server/publishing-adapters.js
+      - run: node --check server/publishing-worker.js
       - run: node --check public/api-bridge.js
