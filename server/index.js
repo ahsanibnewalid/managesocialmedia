@@ -231,7 +231,7 @@ app.get("/api/workspaces/:id/audit",auth,asyncRoute(async(req,res)=>{
 }));
 app.use("/api",(_req,res)=>res.status(404).json({error:"API route not found"}));
 app.get("/",(_req,res)=>res.sendFile(path.join(__dirname,"..","Tidepost Console.html")));
-app.use(express.static(path.join(__dirname,".."),{index:false, dotfiles:"deny"}));
+app.use(express.static(path.join(__dirname,"..","public"),{index:false, dotfiles:"deny"}));
 app.use((err,req,res,next)=>{
   if(err && err.code==="23505") return res.status(409).json({error:"A record with that value already exists"});
   console.error("Request failed:",err.message);
