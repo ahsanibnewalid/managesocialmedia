@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { encryptSocialToken } from "@/lib/social-token-vault";
@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(base);
   }
   try {
+    const membership = await db.query("SELECT 1 FROM workspace_members WHERE user_id=$1 AND workspace_id=$2 AND role = ANY($3::text[])", [oauth.user_id, oauth.workspace_id, ["owner", "admin"]]);
+    if (!membership.rowCount) throw new Error("Workspace access was revoked while OAuth was in progress");
     const platform = oauth.platform as OAuthPlatform;
     const identity = await resolveConnectedAccount(platform, code, oauth.code_verifier);
     const ciphertext = encryptSocialToken(identity.token);
