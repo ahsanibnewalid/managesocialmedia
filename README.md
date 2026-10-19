@@ -52,6 +52,12 @@ Registration JSON: {"name":"Example User","email":"you@example.com","password":"
 
 Post JSON: {"text":"A post draft","platforms":["instagram","facebook"],"status":"draft"}. Scheduled posts also need an ISO-8601 scheduledAt.
 
+## Scheduled publishing worker foundation
+
+The repository includes a BullMQ/Redis queue and a separate worker process for scheduled posts. Configure `REDIS_URL` in `.env`, run Redis, then start the API with `npm start` and the worker separately with `npm run worker:publish`. Scheduled posts are queued when created through the workspace posts API. If Redis is unavailable, the post remains saved and the API returns a warning so it can be recovered.
+
+**Publishing is not live yet.** The worker records publish attempts and fails safely because provider-specific OAuth, token decryption, permissions, and actual Facebook/Instagram/LinkedIn/X/TikTok API adapters have not been configured. It never pretends that a post was published. Do not treat the worker foundation as production-ready until real adapters and idempotency/recovery tests are implemented.
+
 ## Provider integration and production checklist
 1. Register OAuth apps for each platform and configure redirect URLs.
 2. Implement OAuth, token refresh and encrypted token storage. Keep secrets out of browser code.
