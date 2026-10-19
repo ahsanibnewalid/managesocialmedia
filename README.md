@@ -130,7 +130,7 @@ npm test
 npm run build
 ```
 
-Unit tests cover AES-256-GCM token encryption, round-trip decryption, tamper rejection, and invalid keys. The integration tests are **skipped unless their environment variables are supplied**:
+Unit tests cover JWT issuer/expiry/signature validation and AES-256-GCM token encryption, round-trip decryption, tamper rejection, and invalid keys. The integration tests are **skipped unless their environment variables are supplied**:
 
 - Set `DATABASE_URL` to a disposable PostgreSQL database that has had `npm run db:migrate` applied to check schema and workspace-membership isolation.
 - Set `REDIS_URL` to a test Redis instance to verify connectivity.
