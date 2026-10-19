@@ -80,7 +80,7 @@ Configure provider credentials in the deployment secret manager and in local `.e
 | X | `X_CLIENT_ID`, `X_CLIENT_SECRET` | OAuth 2.0 user context and write scopes are required. |
 | TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | The app must be approved for the required Login Kit/Content Posting API scopes. |
 
-The callback URL is `{APP_URL}/api/social/callback`. Register that exact URL with each provider. The UI starts linking at `/api/social/{platform}/connect?workspace={workspaceId}`; workspace owner/admin permission is checked server-side.
+The callback URL is `{APP_URL}/api/social/callback`. Register that exact URL with each provider. The UI starts linking with a same-origin `POST` to `/api/social/{platform}/connect` containing `workspaceId`; the route verifies the `Origin` header and workspace owner/admin permission before redirecting to the provider.
 
 OAuth state values are random, stored as hashes, expire after ten minutes, and are consumed once. X and TikTok authorization use PKCE. Provider tokens are encrypted with AES-256-GCM before persistence in `social_accounts.token_ciphertext`. The ciphertext format is:
 
