@@ -2,9 +2,10 @@ import "server-only";
 import { Pool } from "pg";
 
 const globalForPg = globalThis as unknown as { tidepostPool?: Pool };
-function createPool() {
+function getPool(): Pool {
+  if (globalForPg.tidepostPool) return globalForPg.tidepostPool;
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  return new Pool({
+  const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: true } : undefined,
     max: Number(process.env.PG_POOL_MAX || 10),
@@ -12,6 +13,12 @@ function createPool() {
     connectionTimeoutMillis: 5_000,
     application_name: "tidepost-next"
   });
+  if (process.env.NODE_ENV !== "production") globalForPg.tidepostPool = pool;
+  return pool;
 }
-export const db = globalForPg.tidepostPool ?? createPool();
-if (process.env.NODE_ENV !== "production") globalForPg.tidepostPool = db;
+// Lazily initialize PostgreSQL so next build can compile without deployment secrets.
+export const db = {
+  query: ((...args: any[]) => getPool().query(...args)) as Pool["query"],
+  connect: () => getPool().connect(),
+  end: () => getPool().end()
+};
