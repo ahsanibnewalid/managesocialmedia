@@ -1,13 +1,13 @@
 (() => {
   const style = document.createElement("style");
-  style.textContent = \`
+  style.textContent = `
     #tp-api-launch{position:fixed;right:18px;bottom:18px;z-index:99990;border:0;border-radius:999px;padding:12px 16px;background:#0b6e6e;color:#fff;font:600 13px system-ui;box-shadow:0 8px 30px #0002;cursor:pointer}
     #tp-api-panel{position:fixed;right:18px;bottom:74px;z-index:99990;width:min(390px,calc(100vw - 28px));max-height:75vh;overflow:auto;background:var(--surface,#fff);color:var(--fg,#14202e);border:1px solid var(--line,#dbe1ea);border-radius:12px;padding:16px;box-shadow:0 18px 60px #0003;font:14px system-ui}
     #tp-api-panel input,#tp-api-panel textarea,#tp-api-panel select{display:block;width:100%;margin:6px 0 10px;padding:9px;border:1px solid #9aa8b8;border-radius:7px;background:transparent;color:inherit}
     #tp-api-panel button{border:1px solid #9aa8b8;border-radius:7px;padding:8px 10px;margin:3px;background:transparent;color:inherit;cursor:pointer}
     #tp-api-panel .tp-primary{background:#0b6e6e;color:#fff;border-color:#0b6e6e}
     #tp-api-panel .tp-muted{opacity:.75;font-size:12px}#tp-api-panel .tp-post{padding:9px 0;border-bottom:1px solid #9aa8b855;overflow-wrap:anywhere}
-  \`;
+  `;
   document.head.appendChild(style);
   const launch = document.createElement("button");
   launch.id = "tp-api-launch"; launch.textContent = "Connect backend";
