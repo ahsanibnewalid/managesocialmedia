@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -45,3 +45,5 @@ test("PostgreSQL and Redis live integration availability", { skip: !(hasDatabase
   const result = await pool!.query("SELECT 1 AS healthy");
   assert.equal(result.rows[0].healthy, 1);
 });
+
+after(async () => { await pool?.end(); });
