@@ -13,7 +13,7 @@ function getPool(): Pool {
     connectionTimeoutMillis: 5_000,
     application_name: "tidepost-next"
   });
-  if (process.env.NODE_ENV !== "production") globalForPg.tidepostPool = pool;
+  globalForPg.tidepostPool = pool;
   return pool;
 }
 // Lazily initialize PostgreSQL so next build can compile without deployment secrets.
