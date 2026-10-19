@@ -12,7 +12,7 @@
     "start": "next start",
     "start:legacy": "node server/index.js",
     "dev:legacy": "node --watch server/index.js",
-    "test": "node --test",
+    "test": "node --import tsx --test tests/*.test.ts",
     "worker:publish": "node --import tsx server/publishing-worker.js",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/migrate.js"
