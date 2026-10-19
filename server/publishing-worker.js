@@ -79,6 +79,9 @@ async function processPost(job) {
       errors.push(`${platform}: ${message}`);
       await pool.query("UPDATE publish_attempts SET status='failed',error=$1,finished_at=now() WHERE id=$2",
         [message.slice(0, 4000), attemptId]);
+      if (/HTTP (401|403)|token (expired|invalid|revoked)|reconnect|permission/i.test(message) && account) {
+        await pool.query("UPDATE social_accounts SET status='error' WHERE id=$1 AND workspace_id=$2", [account.id, post.workspace_id]);
+      }
     }
   }
   if (errors.length) {
