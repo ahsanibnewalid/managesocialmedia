@@ -109,7 +109,32 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
     });
     externalPostId = result.data?.id;
   } else if (input.platform === "tiktok") {
-    throw new Error("TikTok publishing requires the approved video upload/publish workflow; text-only publishing is disabled");
+    if (!input.mediaUrl || !input.mediaUrl.startsWith("https://")) throw new Error("TikTok publishing requires a public HTTPS video URL on a domain approved in your TikTok developer app");
+    const init = await providerFetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        post_info: { title: input.text.slice(0, 2200), privacy_level: process.env.TIKTOK_DEFAULT_PRIVACY || "PUBLIC_TO_EVERYONE", disable_comment: false, disable_duet: false, disable_stitch: false },
+        source_info: { source: "PULL_FROM_URL", video_url: input.mediaUrl }
+      })
+    });
+    const publishId = init.data?.publish_id;
+    if (!publishId) throw new Error("TikTok did not return a publish ID; verify video URL ownership, app approval and video.publish scope");
+    let status: any = {};
+    for (let attempt = 0; attempt < 10; attempt++) {
+      status = await providerFetch("https://open.tiktokapis.com/v2/post/publish/status/fetch/", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ publish_id: publishId })
+      });
+      const state = status.data?.status;
+      if (state === "PUBLISH_COMPLETE") break;
+      if (["FAILED", "SEND_TO_USER_INBOX", "PROCESSING_DOWNLOAD", "PROCESSING_UPLOAD"].includes(state)) {
+        if (state === "FAILED") throw new Error("TikTok video publish failed; reconnect the account or inspect the TikTok app/API error details");
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    externalPostId = status.data?.publicaly_available_post_id?.[0] || status.data?.publicly_available_post_id?.[0] || publishId;
   }
   if (!externalPostId) throw new Error(`The ${input.platform} API did not return a post ID`);
   return { platform:input.platform, externalPostId, refreshedEncryptedToken, tokenExpiresAt:token.expiresAt ? new Date(token.expiresAt) : undefined };
