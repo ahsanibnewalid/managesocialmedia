@@ -20,7 +20,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const workspace = workspaces.find(w => Number(w.id) === requested) || workspaces[0];
   if (!await requireWorkspaceRole(user.id, Number(workspace.id), ["owner","admin","editor","viewer"])) redirect("/dashboard");
   const [postsResult, accountsResult] = await Promise.all([
-    db.query("SELECT id::text,text,platforms,status,scheduled_at,published_at,created_at FROM posts WHERE workspace_id=$1 ORDER BY COALESCE(scheduled_at,created_at) DESC LIMIT 100", [workspace.id]),
+    db.query("SELECT id::text,text,media_url,platforms,status,scheduled_at,published_at,created_at FROM posts WHERE workspace_id=$1 ORDER BY COALESCE(scheduled_at,created_at) DESC LIMIT 100", [workspace.id]),
     db.query("SELECT id::text,platform,account_name,status FROM social_accounts WHERE workspace_id=$1 ORDER BY platform,account_name", [workspace.id])
   ]);
   const posts = postsResult.rows;
