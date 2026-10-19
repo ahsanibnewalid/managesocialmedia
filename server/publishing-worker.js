@@ -65,7 +65,17 @@ async function processPost(job) {
       if (!account || account.status !== "connected" || !account.token_ciphertext) {
         throw new Error(`No connected ${platform} account with a stored encrypted token`);
       }
-      const result = await publishToPlatform({ platform, post, account });
+      const result = await publishToPlatform({
+        platform, post, account,
+        persistRefreshedToken: async (ciphertext, expiresAt) => {
+          await pool.query(
+            "UPDATE social_accounts SET token_ciphertext=$1,token_expires_at=$2 WHERE id=$3 AND workspace_id=$4",
+            [ciphertext, expiresAt || null, account.id, post.workspace_id]
+          );
+          account.token_ciphertext = ciphertext;
+          account.token_expires_at = expiresAt || null;
+        }
+      });
       if (result.refreshedEncryptedToken) {
         await pool.query(
           "UPDATE social_accounts SET token_ciphertext=$1,token_expires_at=$2 WHERE id=$3 AND workspace_id=$4",
