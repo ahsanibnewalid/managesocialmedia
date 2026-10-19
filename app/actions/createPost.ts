@@ -9,7 +9,7 @@ const schema = z.object({
   workspaceId: z.coerce.number().int().positive(),
   text: z.string().trim().min(1).max(10_000),
   platforms: z.array(z.enum(["facebook","instagram","linkedin","x","tiktok"])).min(1).max(5),
-  scheduledAt: z.string().datetime().optional().or(z.literal(""))
+  scheduledAt: z.string().max(40).optional().or(z.literal(""))
 });
 export type CreatePostState = { ok: boolean; message: string };
 export async function createPost(_previous: CreatePostState, formData: FormData): Promise<CreatePostState> {
