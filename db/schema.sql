@@ -74,3 +74,7 @@ CREATE TABLE IF NOT EXISTS post_analytics (
  UNIQUE(post_id,platform)
 );
 CREATE INDEX IF NOT EXISTS post_analytics_post_idx ON post_analytics(post_id);
+
+ALTER TABLE publish_attempts ADD COLUMN IF NOT EXISTS social_account_id BIGINT REFERENCES social_accounts(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS publish_attempts_success_once_idx
+ ON publish_attempts(post_id,platform) WHERE status='succeeded';
