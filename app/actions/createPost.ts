@@ -8,6 +8,7 @@ import { enqueueScheduledPost } from "@/lib/publishing-queue";
 const schema = z.object({
   workspaceId: z.coerce.number().int().positive(),
   text: z.string().trim().min(1).max(10_000),
+  mediaUrl: z.string().url().max(2048).refine(value => value.startsWith("https://"), "Media URL must use HTTPS").optional().or(z.literal("")),
   platforms: z.array(z.enum(["facebook","instagram","linkedin","x","tiktok"])).min(1).max(5),
   scheduledAt: z.string().max(40).optional().or(z.literal(""))
 });
@@ -18,11 +19,13 @@ export async function createPost(_previous: CreatePostState, formData: FormData)
   const parsed = schema.safeParse({
     workspaceId:formData.get("workspaceId"),
     text:formData.get("text"),
+    mediaUrl:formData.get("mediaUrl") || "",
     platforms:formData.getAll("platforms").map(String),
     scheduledAt:formData.get("scheduledAt") || ""
   });
   if (!parsed.success) return { ok:false, message:parsed.error.issues[0]?.message || "Invalid post details." };
   const data = parsed.data;
+  if (data.platforms.includes("instagram") && !data.mediaUrl) return { ok:false, message:"Instagram posts require a publicly accessible HTTPS image URL." };
   const role = await requireWorkspaceRole(user.id, data.workspaceId, ["owner","admin","editor"]);
   if (!role) return { ok:false, message:"Workspace not found or you do not have permission to publish." };
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null;
