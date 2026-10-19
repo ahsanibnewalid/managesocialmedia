@@ -59,7 +59,7 @@ export async function syncPublishedPostAnalytics(): Promise<{ synced: number; sk
     SELECT pa.post_id, pa.platform, pa.external_post_id, sa.token_ciphertext
     FROM publish_attempts pa
     JOIN posts p ON p.id=pa.post_id
-    JOIN social_accounts sa ON sa.workspace_id=p.workspace_id AND sa.platform=pa.platform
+    JOIN social_accounts sa ON sa.id=pa.social_account_id AND sa.workspace_id=p.workspace_id
     WHERE pa.status='succeeded' AND pa.external_post_id IS NOT NULL
       AND sa.status='connected' AND sa.token_ciphertext IS NOT NULL
     ORDER BY pa.finished_at DESC NULLS LAST
