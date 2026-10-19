@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export type Platform = "facebook" | "instagram" | "linkedin" | "x" | "tiktok";
-export type PublishInput = { platform: Platform; text: string; externalAccountId: string; encryptedToken: string };
+export type PublishInput = { platform: Platform; text: string; externalAccountId: string; encryptedToken: string; onTokenRefresh?: (ciphertext: string, expiresAt?: Date) => Promise<void> };
 type TokenBundle = { accessToken: string; refreshToken?: string; expiresAt?: number };
 type PublishResult = { externalPostId: string; platform: Platform; refreshedEncryptedToken?: string; tokenExpiresAt?: Date };
 
@@ -70,7 +70,7 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
   let refreshedEncryptedToken: string | undefined;
   if (token.expiresAt && token.expiresAt <= Date.now() + 60_000) {
     token = await refreshToken(input.platform, token);
-    refreshedEncryptedToken = encryptToken(token);
+    refreshedEncryptedToken = encryptToken(token);\n    // Persist rotation before making the publish request so a failed publish does not lose a rotated refresh token.\n    await input.onTokenRefresh?.(refreshedEncryptedToken, token.expiresAt ? new Date(token.expiresAt) : undefined);
   }
   let externalPostId = "";
   if (input.platform === "facebook") {
