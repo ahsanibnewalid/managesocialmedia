@@ -14,12 +14,13 @@ CREATE TABLE IF NOT EXISTS workspace_members (
 );
 CREATE TABLE IF NOT EXISTS posts (
  id BIGSERIAL PRIMARY KEY, workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
- author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL,
+ author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL, media_url TEXT,
  platforms TEXT[] NOT NULL DEFAULT '{}',
  status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','scheduled','publishing','published','failed')),
  scheduled_at TIMESTAMPTZ, published_at TIMESTAMPTZ,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_url TEXT;
 ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_status_check;
 ALTER TABLE posts ADD CONSTRAINT posts_status_check CHECK(status IN ('draft','scheduled','publishing','published','failed'));
 CREATE TABLE IF NOT EXISTS social_accounts (
