@@ -56,9 +56,9 @@ async function processPost(job) {
     throw new Error("Post is not due yet");
   }
 
-  // The database status claim prevents two workers from publishing the same post.
+  // Claim the post atomically so concurrent workers cannot process it together.
   const claim = await pool.query(
-    "UPDATE posts SET updated_at=now() WHERE id=$1 AND status='scheduled' RETURNING id",
+    "UPDATE posts SET status='publishing', updated_at=now() WHERE id=$1 AND status='scheduled' RETURNING id",
     [postId]
   );
   if (!claim.rowCount) return;
@@ -72,9 +72,16 @@ async function processPost(job) {
   );
 
   const byPlatform = new Map(accounts.rows.map((account) => [account.platform, account]));
+  const successfulAttempts = await pool.query(
+    "SELECT DISTINCT platform FROM publish_attempts WHERE post_id=$1 AND status='succeeded'",
+    [postId]
+  );
+  const alreadyPublished = new Set(successfulAttempts.rows.map((row) => row.platform));
   const errors = [];
 
   for (const platform of post.platforms) {
+    // Never repeat a target confirmed successful on an earlier retry.
+    if (alreadyPublished.has(platform)) continue;
     const account = byPlatform.get(platform);
     let attemptId;
 
@@ -116,7 +123,7 @@ async function processPost(job) {
   if (errors.length) {
     const finalAttempt = (job.attemptsMade || 0) + 1 >= (job.opts.attempts || 1);
     await pool.query(
-      "UPDATE posts SET status=$1, updated_at=now() WHERE id=$2 AND status='scheduled'",
+      "UPDATE posts SET status=$1, updated_at=now() WHERE id=$2 AND status='publishing'",
       [finalAttempt ? "failed" : "scheduled", postId]
     );
     if (!finalAttempt) throw new Error(errors.join("; "));
@@ -125,7 +132,7 @@ async function processPost(job) {
   }
 
   await pool.query(
-    "UPDATE posts SET status='published', published_at=now(), updated_at=now() WHERE id=$1",
+    "UPDATE posts SET status='published', published_at=now(), updated_at=now() WHERE id=$1 AND status='publishing'",
     [postId]
   );
 }
