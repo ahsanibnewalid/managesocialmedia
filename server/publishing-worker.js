@@ -57,8 +57,8 @@ async function processPost(job) {
     if (alreadyPublished.has(platform)) continue;
     const account = byPlatform.get(platform);
     const started = await pool.query(
-      "INSERT INTO publish_attempts(post_id,platform,attempt_number,status) VALUES($1,$2,$3,'processing') RETURNING id",
-      [postId, platform, (job.attemptsMade || 0) + 1]
+      "INSERT INTO publish_attempts(post_id,platform,attempt_number,status,social_account_id) VALUES($1,$2,$3,'processing',$4) RETURNING id",
+      [postId, platform, (job.attemptsMade || 0) + 1, account?.id || null]
     );
     const attemptId = started.rows[0].id;
     try {
