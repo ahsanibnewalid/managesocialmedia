@@ -4,6 +4,10 @@
 
 ## First: what is Tidepost?
 
+![Illustrative dashboard preview](images/dashboard-preview.svg)
+
+> These pictures are explanatory mockups, not screenshots of a live running instance. Sample counts and post names are fictional; use the app itself to verify real features and data.
+
 Tidepost is a dashboard for preparing social-media posts and sending them to connected social accounts. Think of it like a central desk: you write a post in one place, choose supported platforms, and Tidepost sends it using the permissions you granted.
 
 ```mermaid
@@ -89,6 +93,9 @@ openssl rand -base64 32
 
 ## Step 3 — Install and start Tidepost locally
 
+![Beginner-friendly setup roadmap](images/setup-steps.svg)
+
+
 ```mermaid
 flowchart TD
     A["1. Open a terminal in the project folder"] --> B["2. Run npm install"]
@@ -163,6 +170,9 @@ sequenceDiagram
 
 ## Step 6 — Create and publish a post
 
+![Illustrative calendar showing how scheduled content can be organized](images/calendar-preview.svg)
+
+
 ```mermaid
 flowchart TD
     A["✍️ Write post"] --> B["Choose connected platform(s)"]
@@ -206,6 +216,9 @@ flowchart TD
 The queue retries certain failures and recorded successful platform attempts are skipped on later retries. However, some platforms do not support idempotency keys. If a platform accepts a post and the worker crashes before saving that success, a duplicate or uncertain result is still possible. Check the provider's own account before manually retrying uncertain posts.
 
 ## Step 7 — Understand analytics
+
+![Illustrative analytics chart with sample values only](images/analytics-preview.svg)
+
 
 ```mermaid
 flowchart LR
