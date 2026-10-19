@@ -35,8 +35,8 @@ export async function createPost(_previous: CreatePostState, formData: FormData)
   try {
     await client.query("BEGIN");
     const inserted = await client.query(
-      "INSERT INTO posts(workspace_id,author_id,text,platforms,status,scheduled_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,workspace_id,text,platforms,status,scheduled_at,created_at",
-      [data.workspaceId,user.id,data.text,data.platforms,status,scheduledAt]
+      "INSERT INTO posts(workspace_id,author_id,text,media_url,platforms,status,scheduled_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,workspace_id,text,media_url,platforms,status,scheduled_at,created_at",
+      [data.workspaceId,user.id,data.text,data.mediaUrl || null,data.platforms,status,scheduledAt]
     );
     post = inserted.rows[0];
     await client.query("INSERT INTO audit_log(user_id,workspace_id,action,metadata) VALUES($1,$2,$3,$4)",
