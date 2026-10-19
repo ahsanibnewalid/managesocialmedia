@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSessionUser, requireWorkspaceRole } from "@/lib/auth";
-import { createPost } from "@/app/actions/createPost";
+import { PostComposer } from "@/app/dashboard/PostComposer";
 import { logout } from "@/app/actions/auth";
 
 type Workspace = { id:string; name:string; role:string };
@@ -19,16 +19,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const requested = Number(params.workspace || workspaces[0].id);
   const workspace = workspaces.find(w => Number(w.id) === requested) || workspaces[0];
   if (!await requireWorkspaceRole(user.id, Number(workspace.id), ["owner","admin","editor","viewer"])) redirect("/dashboard");
-  const [postsResult, accountsResult, reachResult] = await Promise.all([
+  const [postsResult, accountsResult] = await Promise.all([
     db.query("SELECT id::text,text,platforms,status,scheduled_at,published_at,created_at FROM posts WHERE workspace_id=$1 ORDER BY COALESCE(scheduled_at,created_at) DESC LIMIT 100", [workspace.id]),
-    db.query("SELECT id::text,platform,account_name,status FROM social_accounts WHERE workspace_id=$1 ORDER BY platform,account_name", [workspace.id]),
-    // Reach is not currently ingested by any provider integration; do not fabricate a metric.
-    db.query("SELECT 0::bigint AS total_reach")
+    db.query("SELECT id::text,platform,account_name,status FROM social_accounts WHERE workspace_id=$1 ORDER BY platform,account_name", [workspace.id])
   ]);
   const posts = postsResult.rows;
   const connected = accountsResult.rows.filter((a:any) => a.status === "connected").length;
   const scheduled = posts.filter((p:any) => p.status === "scheduled").length;
-  const action = createPost.bind(null, { ok:false, message:"" });
   return <main className="shell">
     <header className="topbar"><div><p className="eyebrow">TIDEPOST CONSOLE</p><h1>Good to see you, {user.name}</h1><p className="muted">Workspace: {workspace.name} · {workspace.role}</p></div><form action={logout}><button className="quiet">Sign out</button></form></header>
     <section className="stats">
@@ -39,14 +36,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     </section>
     <div className="columns">
       <section className="panel"><div className="panel-heading"><div><p className="eyebrow">COMPOSER</p><h2>Create a post</h2></div></div>
-        <form action={action} className="stack">
-          <input type="hidden" name="workspaceId" value={workspace.id}/>
-          <label>Caption<textarea name="text" required minLength={1} maxLength={10000} rows={5} placeholder="What would you like to share?"/></label>
-          <fieldset><legend>Platforms</legend><div className="platforms">{(["facebook","instagram","linkedin","x","tiktok"] as const).map(p=><label className="check" key={p}><input type="checkbox" name="platforms" value={p}/><span>{p === "x" ? "X" : p[0].toUpperCase()+p.slice(1)}</span></label>)}</div></fieldset>
-          <label>Schedule (optional)<input type="datetime-local" name="scheduledAt" /></label>
-          <button className="primary" type="submit">Save post</button>
-          <p className="muted small">Scheduled jobs use Redis/BullMQ. Publishing only succeeds for providers whose approved API integration and account permissions are configured.</p>
-        </form>
+        {["owner","admin","editor"].includes(workspace.role) ? <PostComposer workspaceId={workspace.id}/> : <p className="muted">Your workspace role is read-only.</p>}
       </section>
       <section className="panel"><div className="panel-heading"><div><p className="eyebrow">WORKSPACE</p><h2>Connected accounts</h2></div></div>
         {accountsResult.rows.length ? <ul className="account-list">{accountsResult.rows.map((a:any)=><li key={a.id}><span className="dot" data-status={a.status}/><div><strong>{a.account_name}</strong><small>{a.platform} · {a.status}</small></div></li>)}</ul> : <p className="muted">No social accounts connected yet.</p>}
