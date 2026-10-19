@@ -1,7 +1,7 @@
 name: Node.js checks
 on:
   push:
-    branches: [main, feat/full-stack-foundation]
+    branches: [main, feat/full-stack-foundation, feat/nextjs-migration]
   pull_request:
     branches: [main]
 jobs:
@@ -12,7 +12,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - run: npm install
+      - run: npm run typecheck
+      - run: npm run build
       - run: node --check server/index.js
       - run: node --check server/publishing-queue.js
       - run: node --check server/publishing-adapters.js
