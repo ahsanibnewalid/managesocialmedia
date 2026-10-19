@@ -76,7 +76,7 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
   }
   let externalPostId = "";
   if (input.platform === "facebook") {
-    const version = process.env.META_GRAPH_API_VERSION || "v23.0";
+    const version = requiredEnv("META_GRAPH_API_VERSION");
     const result = await providerFetch(`https://graph.facebook.com/${version}/${encodeURIComponent(input.externalAccountId)}/feed`, {
       method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body:new URLSearchParams({ message:input.text, access_token:token.accessToken })
