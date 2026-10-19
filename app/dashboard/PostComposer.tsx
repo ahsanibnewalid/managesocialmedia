@@ -5,7 +5,13 @@ import { createPost, type CreatePostState } from "@/app/actions/createPost";
 const initialState: CreatePostState = { ok:false, message:"" };
 export function PostComposer({ workspaceId }: { workspaceId: string }) {
   const [state, formAction, pending] = useActionState(createPost, initialState);
-  return <form action={formAction} className="stack">
+  const scheduleInput = useRef<HTMLInputElement>(null);
+  const scheduleIso = useRef<HTMLInputElement>(null);
+  function normalizeSchedule() {
+    const value = scheduleInput.current?.value;
+    if (scheduleIso.current) scheduleIso.current.value = value ? new Date(value).toISOString() : "";
+  }
+  return <form action={formAction} className="stack" onSubmit={normalizeSchedule}>
     <input type="hidden" name="workspaceId" value={workspaceId}/>
     <label>Caption<textarea name="text" required minLength={1} maxLength={10000} rows={5} placeholder="What would you like to share?"/></label>
     <fieldset><legend>Platforms</legend><div className="platforms">
