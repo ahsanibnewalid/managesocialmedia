@@ -83,7 +83,18 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
     });
     externalPostId = result.id;
   } else if (input.platform === "instagram") {
-    throw new Error("Instagram Graph API requires a media container for publishing; text-only publishing is intentionally disabled");
+    if (!input.mediaUrl || !input.mediaUrl.startsWith("https://")) throw new Error("Instagram publishing requires a publicly accessible HTTPS image URL");
+    const version = process.env.META_GRAPH_API_VERSION || "v23.0";
+    const container = await providerFetch(`https://graph.facebook.com/${version}/${encodeURIComponent(input.externalAccountId)}/media`, {
+      method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:new URLSearchParams({ image_url:input.mediaUrl, caption:input.text, access_token:token.accessToken })
+    });
+    if (!container.id) throw new Error("Instagram API did not return a media container ID");
+    const published = await providerFetch(`https://graph.facebook.com/${version}/${encodeURIComponent(input.externalAccountId)}/media_publish`, {
+      method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:new URLSearchParams({ creation_id:container.id, access_token:token.accessToken })
+    });
+    externalPostId = published.id;
   } else if (input.platform === "linkedin") {
     const result = await providerFetch("https://api.linkedin.com/rest/posts", {
       method:"POST",
