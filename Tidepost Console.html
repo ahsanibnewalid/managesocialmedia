@@ -1,0 +1,746 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tidepost Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: app shell. Collapsible left rail, sticky top bar, content canvas; composer is a two-column editor + live preview. */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface2:#eaeef4; --line:#dbe1ea; --fg:#14202e; --muted:#5b6b7e;
+  --accent:#0b6e6e; --accent-fg:#ffffff; --accent-soft:#d5efec;
+  --good:#1a7f4b; --good-soft:#d9f2e4; --warn:#a15c00; --warn-soft:#fbe9c9; --bad:#b4281e; --bad-soft:#fbdcd8;
+  --rail:#0f1b2a; --rail-fg:#c5d0de; --rail-active:#1d3146;
+  --font-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --font-body:'Instrument Sans','Segoe UI',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b121b; --surface:#121c28; --surface2:#1a2736; --line:#26364a; --fg:#e6edf5; --muted:#8fa1b6;
+  --accent:#3fc8bd; --accent-fg:#04201e; --accent-soft:#12383a;
+  --good:#4cc790; --good-soft:#12342a; --warn:#e5ab4a; --warn-soft:#3a2c10; --bad:#f08a80; --bad-soft:#3d1a17;
+  --rail:#08101a; --rail-fg:#9fb0c4; --rail-active:#15263a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b121b; --surface:#121c28; --surface2:#1a2736; --line:#26364a; --fg:#e6edf5; --muted:#8fa1b6;
+  --accent:#3fc8bd; --accent-fg:#04201e; --accent-soft:#12383a;
+  --good:#4cc790; --good-soft:#12342a; --warn:#e5ab4a; --warn-soft:#3a2c10; --bad:#f08a80; --bad-soft:#3d1a17;
+  --rail:#08101a; --rail-fg:#9fb0c4; --rail-active:#15263a; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.5;margin:0;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+#root{height:100%}
+h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.01em;text-wrap:balance}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+*{box-sizing:border-box}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+textarea,input,select{font-family:inherit;color:var(--fg)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+.fade-in{animation:fi .18s ease-out}
+@keyframes fi{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}
+.scroll-x{overflow-x:auto}
+pre.code{font-family:var(--font-mono);font-size:12px;line-height:1.6;margin:0;padding:14px 16px;overflow-x:auto;background:var(--surface2);border-radius:6px;border:1px solid var(--line)}
+</style>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{bg:'var(--bg)',surface:'var(--surface)',surface2:'var(--surface2)',line:'var(--line)',ink:'var(--fg)',muted:'var(--muted)',accent:'var(--accent)','accent-fg':'var(--accent-fg)','accent-soft':'var(--accent-soft)',good:'var(--good)','good-soft':'var(--good-soft)',warn:'var(--warn)','warn-soft':'var(--warn-soft)',bad:'var(--bad)','bad-soft':'var(--bad-soft)',rail:'var(--rail)','rail-fg':'var(--rail-fg)','rail-active':'var(--rail-active)'},fontFamily:{display:['var(--font-display)'],mono:['var(--font-mono)']}}}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.468.0/umd/lucide.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.2/babel.min.js"></script>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const {useState,useMemo,useEffect,useRef,useCallback}=React;
+
+/* ---------- Icon (renders any lucide icon by name, same set lucide-react exposes) ---------- */
+const Icon=({name,size=16,className='',strokeWidth=2})=>{
+  const node=(window.lucide&&window.lucide.icons&&window.lucide.icons[name])||[];
+  const kids=typeof node[0]==='string'?(node[2]||[]):node;
+  return React.createElement('svg',{xmlns:'http://www.w3.org/2000/svg',width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth,strokeLinecap:'round',strokeLinejoin:'round',className,'aria-hidden':true},
+    kids.map(([tag,attrs],i)=>React.createElement(tag,{...attrs,key:i})));
+};
+
+/* ---------- Static reference data ---------- */
+const PLATFORMS={
+  facebook:{name:'Facebook',short:'FB',icon:'Facebook',limit:63206,color:'#1877f2',group:'Meta'},
+  instagram:{name:'Instagram',short:'IG',icon:'Instagram',limit:2200,color:'#d62976',group:'Meta'},
+  linkedin:{name:'LinkedIn',short:'IN',icon:'Linkedin',limit:3000,color:'#0a66c2',group:'LinkedIn'},
+  x:{name:'X / Twitter',short:'X',icon:'Twitter',limit:280,color:'#6b7a8d',group:'X'},
+  tiktok:{name:'TikTok',short:'TT',icon:'Music2',limit:2200,color:'#e0245e',group:'TikTok'},
+};
+const PKEYS=Object.keys(PLATFORMS);
+const NAV=[
+  {id:'dashboard',label:'Dashboard',icon:'LayoutDashboard'},
+  {id:'planner',label:'Content Planner',icon:'CalendarDays'},
+  {id:'composer',label:'Post Composer',icon:'PenSquare'},
+  {id:'inbox',label:'Social Inbox',icon:'Inbox'},
+  {id:'analytics',label:'Analytics',icon:'BarChart3'},
+  {id:'settings',label:'Settings',icon:'Settings'},
+  {id:'arch',label:'Architecture Guide',icon:'Blocks'},
+];
+const WORKSPACES=[
+  {id:'w1',name:'Harbor & Pine Studio',kind:'Agency',plan:'Agency',seats:8,mult:1,brands:'Client: Northwind Coffee'},
+  {id:'w2',name:'Lumen Fitness',kind:'Brand',plan:'Business',seats:4,mult:0.62,brands:'In-house team'},
+  {id:'w3',name:'Maya Okafor (Solo)',kind:'Solopreneur',plan:'Starter',seats:1,mult:0.28,brands:'Personal brand'},
+];
+const CANNED=[
+  {k:'Thanks',t:'Thanks so much for reaching out! We really appreciate your support.'},
+  {k:'Order status',t:'Sorry for the wait. Could you share your order number? We will check the status right away.'},
+  {k:'Hours',t:'We are open Mon-Sat, 8am to 6pm. Hope to see you soon!'},
+  {k:'Escalate',t:'Thanks for flagging this. I have passed it to our team lead, and you will hear back within 2 hours.'},
+];
+const SENT={
+  positive:{label:'Positive',cls:'bg-good-soft text-good',icon:'Smile'},
+  neutral:{label:'Neutral',cls:'bg-surface2 text-muted',icon:'Meh'},
+  urgent:{label:'Urgent',cls:'bg-bad-soft text-bad',icon:'AlertTriangle'},
+};
+const pad=n=>String(n).padStart(2,'0');
+const ymd=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
+const TODAY=new Date(2026,9,20);
+const fmtDate=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric'})};
+const fmtNum=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'K':n.toLocaleString('en-US');
+
+const SEED_POSTS=[
+  {id:1,text:'Autumn menu drops Thursday. Pumpkin cortado, cardamom bun, and a new single-origin from Huila.',platforms:['instagram','facebook'],date:'2026-10-22',time:'09:00',status:'scheduled'},
+  {id:2,text:'We just published our Q3 sourcing report: what changed in our supply chain and why.',platforms:['linkedin'],date:'2026-10-21',time:'11:30',status:'scheduled'},
+  {id:3,text:'Behind the bar: how we dial in espresso every morning (60 sec).',platforms:['tiktok','instagram'],date:'2026-10-23',time:'17:00',status:'scheduled'},
+  {id:4,text:'Weekend hours are changing. Details inside.',platforms:['x','facebook'],date:'2026-10-18',time:'08:00',status:'published'},
+  {id:5,text:'Meet Dara, our new head roaster.',platforms:['linkedin','facebook'],date:'2026-10-15',time:'10:00',status:'published'},
+  {id:6,text:'Draft: Black Friday teaser, bundle idea needs sign-off.',platforms:['instagram'],date:'2026-10-28',time:'12:00',status:'draft'},
+  {id:7,text:'Latte art class sign-ups are open for November.',platforms:['facebook','instagram','x'],date:'2026-10-26',time:'10:00',status:'scheduled'},
+];
+const SEED_THREADS=[
+  {id:1,platform:'instagram',kind:'DM',name:'Priya Nair',handle:'@priya.brews',sentiment:'positive',unread:true,time:'4m',msgs:[{from:'them',t:'Your cardamom bun is the best thing I ate this week!! Do you ship beans too?'}]},
+  {id:2,platform:'facebook',kind:'Comment',name:'Tom Whitfield',handle:'Tom Whitfield',sentiment:'urgent',unread:true,time:'12m',msgs:[{from:'them',t:'Ordered 10 days ago and still nothing. Order #48213. This is the second time.'}]},
+  {id:3,platform:'linkedin',kind:'DM',name:'Elena Rossi',handle:'Procurement, Alder Hotels',sentiment:'neutral',unread:false,time:'1h',msgs:[{from:'them',t:'Hello, we are exploring a wholesale supplier for 6 properties. Who is the right contact?'}]},
+  {id:4,platform:'x',kind:'Mention',name:'Jonas K.',handle:'@jonask',sentiment:'urgent',unread:true,time:'2h',msgs:[{from:'them',t:'@northwindcoffee the app charged me twice today. Please fix this.'}]},
+  {id:5,platform:'tiktok',kind:'Comment',name:'mia.makes',handle:'@mia.makes',sentiment:'positive',unread:false,time:'3h',msgs:[{from:'them',t:'The espresso pour at 0:42 is so satisfying, tutorial please!'}]},
+  {id:6,platform:'facebook',kind:'DM',name:'Greg Alvarez',handle:'Greg Alvarez',sentiment:'neutral',unread:false,time:'5h',msgs:[{from:'them',t:'What time do you open on Sundays?'}]},
+];
+const CHANNEL_STATS=[
+  {k:'instagram',reach:182000,eng:5.8,followers:41200,posts:18},
+  {k:'facebook',reach:126000,eng:2.9,followers:33800,posts:15},
+  {k:'linkedin',reach:84000,eng:4.1,followers:12900,posts:9},
+  {k:'tiktok',reach:214000,eng:7.2,followers:27400,posts:11},
+  {k:'x',reach:58000,eng:1.7,followers:9600,posts:22},
+];
+
+/* ---------- Shared UI ---------- */
+const Card=({className='',children})=><div className={`bg-surface border border-line rounded-md ${className}`}>{children}</div>;
+const Btn=({variant='ghost',className='',icon,children,...p})=>{
+  const v={primary:'bg-accent text-accent-fg hover:opacity-90',ghost:'border border-line bg-surface hover:bg-surface2 text-ink',soft:'bg-accent-soft text-accent hover:opacity-80',danger:'border border-line text-bad hover:bg-bad-soft'}[variant];
+  return <button {...p} className={`inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md text-[13px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed ${v} ${className}`}>{icon&&<Icon name={icon} size={15}/>}{children}</button>;
+};
+const PlatformDot=({k,size=22})=>{
+  const p=PLATFORMS[k];
+  return <span title={p.name} className="inline-flex items-center justify-center rounded text-white shrink-0" style={{width:size,height:size,background:p.color}}><Icon name={p.icon} size={Math.round(size*0.56)}/></span>;
+};
+const StatusPill=({s})=>{
+  const m={scheduled:['bg-accent-soft text-accent','Scheduled'],published:['bg-good-soft text-good','Published'],draft:['bg-surface2 text-muted','Draft']}[s];
+  return <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${m[0]}`}>{m[1]}</span>;
+};
+const PageHead=({title,sub,children})=>(
+  <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+    <div className="min-w-0"><h1 className="text-[26px] font-bold leading-tight">{title}</h1>{sub&&<p className="text-muted mt-0.5">{sub}</p>}</div>
+    <div className="flex flex-wrap gap-2">{children}</div>
+  </div>
+);
+const Tabs=({tabs,value,onChange})=>(
+  <div role="tablist" className="flex gap-1 border-b border-line mb-4 scroll-x">
+    {tabs.map(t=><button key={t.id} role="tab" aria-selected={value===t.id} onClick={()=>onChange(t.id)}
+      className={`px-3 h-9 text-[13px] font-medium whitespace-nowrap border-b-2 -mb-px transition ${value===t.id?'border-accent text-accent':'border-transparent text-muted hover:text-ink'}`}>{t.label}</button>)}
+  </div>
+);
+
+/* ---------- Post preview mocks ---------- */
+const BRAND={name:'Northwind Coffee',handle:'northwindcoffee'};
+const Avatar=({size=34})=><span className="inline-flex items-center justify-center rounded-full bg-accent text-accent-fg font-display font-bold shrink-0" style={{width:size,height:size,fontSize:size*0.42}}>N</span>;
+const MediaBlock=({ratio='56%',label})=>(
+  <div className="relative w-full rounded bg-surface2 border border-line overflow-hidden" style={{paddingTop:ratio}}>
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-muted gap-1"><Icon name="Image" size={22}/><span className="text-[11px]">{label}</span></div>
+  </div>
+);
+const Preview=({k,text,hasMedia})=>{
+  const t=text.trim()||'Your post text will appear here as you type.';
+  const body=k==='x'?t.slice(0,280):t.slice(0,k==='linkedin'?3000:2200);
+  const over=text.length>PLATFORMS[k].limit;
+  if(k==='tiktok') return (
+    <div className="mx-auto w-[230px] aspect-[9/16] rounded-xl bg-[#0c0f14] text-white p-3 flex flex-col justify-end relative overflow-hidden border border-line">
+      <div className="absolute inset-0 flex items-center justify-center text-white/30"><Icon name="Play" size={44}/></div>
+      <div className="absolute right-2 bottom-24 flex flex-col gap-3 items-center text-[10px]"><Icon name="Heart" size={20}/><Icon name="MessageCircle" size={20}/><Icon name="Share2" size={20}/></div>
+      <div className="relative text-[12px] font-semibold">@{BRAND.handle}</div>
+      <div className="relative text-[12px] leading-snug mt-1 pr-8 line-clamp-5">{body}</div>
+    </div>);
+  if(k==='x') return (
+    <div className="p-4 rounded-md border border-line bg-surface">
+      <div className="flex gap-2.5"><Avatar/><div className="min-w-0 flex-1">
+        <div className="text-[13px]"><b>{BRAND.name}</b> <span className="text-muted">@{BRAND.handle} · now</span></div>
+        <p className="whitespace-pre-wrap break-words mt-1 text-[14px]">{body}{over&&<span className="text-bad"> (truncated)</span>}</p>
+        {hasMedia&&<div className="mt-2"><MediaBlock label="Image"/></div>}
+        <div className="flex justify-between text-muted mt-3 max-w-[260px]"><Icon name="MessageCircle" size={15}/><Icon name="Repeat2" size={15}/><Icon name="Heart" size={15}/><Icon name="BarChart2" size={15}/></div>
+      </div></div></div>);
+  const isIG=k==='instagram';
+  return (
+    <div className="rounded-md border border-line bg-surface overflow-hidden">
+      <div className="flex items-center gap-2.5 p-3"><Avatar/><div className="min-w-0"><div className="text-[13px] font-semibold">{isIG?BRAND.handle:BRAND.name}</div><div className="text-[11px] text-muted">{k==='linkedin'?'12,904 followers · Just now':k==='facebook'?'Just now · Public':'Sponsored location'}</div></div><Icon name="MoreHorizontal" size={16} className="ml-auto text-muted"/></div>
+      {isIG&&<div className="px-3"><MediaBlock ratio="100%" label="Square image or Reel cover"/></div>}
+      <p className="px-3 py-2 whitespace-pre-wrap break-words text-[13.5px]">{isIG&&<b>{BRAND.handle} </b>}{body}{(k==='facebook'||k==='linkedin')&&hasMedia&&<span className="block mt-2"><MediaBlock label="Image"/></span>}</p>
+      <div className="flex items-center gap-4 px-3 py-2.5 border-t border-line text-muted text-[12px]">
+        {k==='linkedin'?<><span className="flex gap-1 items-center"><Icon name="ThumbsUp" size={14}/>Like</span><span className="flex gap-1 items-center"><Icon name="MessageSquare" size={14}/>Comment</span><span className="flex gap-1 items-center"><Icon name="Repeat2" size={14}/>Repost</span><span className="flex gap-1 items-center"><Icon name="Send" size={14}/>Send</span></>
+        :<><span className="flex gap-1 items-center"><Icon name="Heart" size={14}/>Like</span><span className="flex gap-1 items-center"><Icon name="MessageCircle" size={14}/>Comment</span><span className="flex gap-1 items-center"><Icon name="Share2" size={14}/>Share</span></>}
+      </div>
+    </div>);
+};
+
+/* ---------- Composer ---------- */
+const Composer=({onSubmit,initialDate,notify})=>{
+  const [sel,setSel]=useState(['instagram','linkedin']);
+  const [text,setText]=useState('Autumn menu drops Thursday. Pumpkin cortado, cardamom bun, and a new single-origin from Huila. Come early, the buns go fast.');
+  const [media,setMedia]=useState(true);
+  const [date,setDate]=useState(initialDate||'2026-10-22');
+  const [time,setTime]=useState('09:00');
+  const [prev,setPrev]=useState('instagram');
+  const toggle=k=>setSel(s=>s.includes(k)?s.filter(x=>x!==k):[...s,k]);
+  const active=sel.includes(prev)?prev:sel[0];
+  const over=sel.filter(k=>text.length>PLATFORMS[k].limit);
+  const past=date<ymd(2026,9,20);
+  const canGo=sel.length>0&&text.trim().length>0&&over.length===0;
+  const submit=(mode)=>{
+    onSubmit({text:text.trim(),platforms:sel,date:mode==='now'?ymd(2026,9,20):date,time:mode==='now'?'00:22':time,status:mode==='now'?'published':mode==='draft'?'draft':'scheduled'});
+    if(mode!=='draft') setText('');
+  };
+  return (
+    <div>
+      <PageHead title="Post Composer" sub="Write once, tailor per network, and check the preview before it goes out."/>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="p-4 min-w-0">
+          <div className="text-[12px] font-semibold text-muted uppercase tracking-wider mb-2">Publish to</div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {PKEYS.map(k=>{const on=sel.includes(k);return(
+              <button key={k} onClick={()=>toggle(k)} aria-pressed={on}
+                className={`flex items-center gap-2 pl-1.5 pr-3 h-9 rounded-md border text-[13px] font-medium transition ${on?'border-accent bg-accent-soft text-ink':'border-line text-muted hover:bg-surface2'}`}>
+                <PlatformDot k={k} size={24}/>{PLATFORMS[k].name}{on&&<Icon name="Check" size={14} className="text-accent"/>}
+              </button>)})}
+          </div>
+          <label htmlFor="body" className="text-[12px] font-semibold text-muted uppercase tracking-wider">Post text</label>
+          <textarea id="body" value={text} onChange={e=>setText(e.target.value)} rows={7} placeholder="What do you want to say?"
+            className="mt-2 w-full rounded-md border border-line bg-bg p-3 text-[14px] leading-relaxed resize-y focus:border-accent outline-none"/>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {sel.length===0&&<span className="text-[12px] text-muted">Select a network to see its character limit.</span>}
+            {sel.map(k=>{const n=text.length,l=PLATFORMS[k].limit,pct=n/l,bad=n>l,warn=pct>0.9;return(
+              <div key={k} className={`flex items-center gap-2 px-2 h-7 rounded border text-[12px] mono ${bad?'border-bad text-bad bg-bad-soft':warn?'border-line text-warn bg-warn-soft':'border-line text-muted'}`}>
+                <PlatformDot k={k} size={16}/>{n.toLocaleString()}/{l.toLocaleString()}
+              </div>)})}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <Btn icon="Image" variant={media?'soft':'ghost'} onClick={()=>setMedia(m=>!m)}>{media?'Image attached':'Attach image'}</Btn>
+            <Btn icon="Sparkles" onClick={()=>setText(t=>t.replace(/\s+/g,' ').trim()+' #NorthwindCoffee #SpecialtyCoffee')}>Add hashtags</Btn>
+            <Btn icon="Eraser" onClick={()=>setText('')}>Clear</Btn>
+          </div>
+          <div className="mt-5 pt-4 border-t border-line">
+            <div className="text-[12px] font-semibold text-muted uppercase tracking-wider mb-2">Schedule</div>
+            <div className="flex flex-wrap gap-3">
+              <div><label htmlFor="d" className="block text-[12px] text-muted mb-1">Date</label><input id="d" type="date" value={date} min="2026-10-20" onChange={e=>setDate(e.target.value)} className="h-9 px-2 rounded-md border border-line bg-bg"/></div>
+              <div><label htmlFor="t" className="block text-[12px] text-muted mb-1">Time (Asia/Dhaka)</label><input id="t" type="time" value={time} onChange={e=>setTime(e.target.value)} className="h-9 px-2 rounded-md border border-line bg-bg"/></div>
+            </div>
+            {past&&<p className="text-[12px] text-bad mt-2">That date is in the past. Pick today or later.</p>}
+            {over.length>0&&<p className="text-[12px] text-bad mt-2">Over the limit for {over.map(k=>PLATFORMS[k].name).join(', ')}. Shorten the text to continue.</p>}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-5">
+            <Btn variant="primary" icon="CalendarClock" disabled={!canGo||past} onClick={()=>submit('schedule')}>Schedule for {fmtDate(date)}, {time}</Btn>
+            <Btn variant="ghost" icon="Send" disabled={!canGo} onClick={()=>submit('now')}>Publish now</Btn>
+            <Btn variant="ghost" icon="Save" disabled={!text.trim()||sel.length===0} onClick={()=>submit('draft')}>Save draft</Btn>
+          </div>
+        </Card>
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold text-muted uppercase tracking-wider mb-2">Live preview</div>
+          {sel.length===0?(
+            <Card className="p-10 text-center text-muted"><Icon name="MousePointerClick" size={26} className="mx-auto mb-2"/>Choose at least one network to see how the post will look.</Card>
+          ):(<>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {sel.map(k=><button key={k} onClick={()=>setPrev(k)} className={`flex items-center gap-1.5 px-2.5 h-8 rounded-md text-[12px] font-medium border transition ${active===k?'border-accent bg-accent-soft':'border-line text-muted hover:bg-surface2'}`}><PlatformDot k={k} size={16}/>{PLATFORMS[k].name}</button>)}
+            </div>
+            <div className="fade-in" key={active}><Preview k={active} text={text} hasMedia={media}/></div>
+            <p className="text-[12px] text-muted mt-3">Previews are approximations. Each network applies its own cropping and truncation.</p>
+          </>)}
+        </div>
+      </div>
+    </div>);
+};
+
+/* ---------- Planner ---------- */
+const Planner=({posts,onNew,onDelete})=>{
+  const [ym,setYm]=useState({y:2026,m:9});
+  const [sel,setSel]=useState(ymd(2026,9,20));
+  const [pf,setPf]=useState('all');
+  const first=new Date(ym.y,ym.m,1);
+  const lead=(first.getDay()+6)%7;
+  const days=new Date(ym.y,ym.m+1,0).getDate();
+  const cells=[...Array(lead).fill(null),...Array.from({length:days},(_,i)=>i+1)];
+  while(cells.length%7)cells.push(null);
+  const shown=posts.filter(p=>pf==='all'||p.platforms.includes(pf));
+  const byDate=d=>shown.filter(p=>p.date===ymd(ym.y,ym.m,d));
+  const selPosts=shown.filter(p=>p.date===sel).sort((a,b)=>a.time.localeCompare(b.time));
+  const nav=n=>setYm(({y,m})=>{const d=new Date(y,m+n,1);return{y:d.getFullYear(),m:d.getMonth()}});
+  const title=first.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  return (
+    <div>
+      <PageHead title="Content Planner" sub="Every scheduled, published and draft post across your channels.">
+        <Btn variant="primary" icon="Plus" onClick={()=>onNew(sel)}>New post on {fmtDate(sel)}</Btn>
+      </PageHead>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <Btn icon="ChevronLeft" aria-label="Previous month" onClick={()=>nav(-1)}/>
+        <h2 className="text-[18px] font-bold min-w-[150px] text-center">{title}</h2>
+        <Btn icon="ChevronRight" aria-label="Next month" onClick={()=>nav(1)}/>
+        <div className="ml-auto flex flex-wrap gap-1.5">
+          <button onClick={()=>setPf('all')} className={`px-2.5 h-8 rounded-md text-[12px] border ${pf==='all'?'border-accent bg-accent-soft':'border-line text-muted'}`}>All</button>
+          {PKEYS.map(k=><button key={k} onClick={()=>setPf(k)} aria-label={PLATFORMS[k].name} className={`px-1.5 h-8 rounded-md border flex items-center ${pf===k?'border-accent bg-accent-soft':'border-line'}`}><PlatformDot k={k} size={18}/></button>)}
+        </div>
+      </div>
+      <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
+        <Card className="p-2 min-w-0 scroll-x">
+          <div className="min-w-[560px]">
+            <div className="grid grid-cols-7 text-[11px] uppercase tracking-wider text-muted px-1 pb-1">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=><div key={d} className="px-1.5 py-1">{d}</div>)}</div>
+            <div className="grid grid-cols-7 gap-px bg-line border border-line rounded overflow-hidden">
+              {cells.map((d,i)=>{
+                if(!d)return <div key={i} className="bg-surface2 min-h-[84px]"/>;
+                const ds=ymd(ym.y,ym.m,d),ps=byDate(d),isSel=sel===ds,isToday=ds==='2026-10-20';
+                return (
+                  <button key={i} onClick={()=>setSel(ds)} className={`bg-surface text-left p-1.5 min-h-[84px] flex flex-col gap-1 hover:bg-surface2 transition ${isSel?'ring-2 ring-inset ring-accent':''}`}>
+                    <span className={`mono text-[12px] w-6 h-6 inline-flex items-center justify-center rounded-full ${isToday?'bg-accent text-accent-fg font-semibold':'text-muted'}`}>{d}</span>
+                    {ps.slice(0,2).map(p=><span key={p.id} className={`truncate text-[10.5px] px-1 py-0.5 rounded ${p.status==='published'?'bg-good-soft text-good':p.status==='draft'?'bg-surface2 text-muted':'bg-accent-soft text-accent'}`}>{p.time} {p.text}</span>)}
+                    {ps.length>2&&<span className="text-[10.5px] text-muted">+{ps.length-2} more</span>}
+                  </button>);
+              })}
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4 min-w-0 h-fit">
+          <h3 className="text-[16px] font-bold mb-0.5">{fmtDate(sel)}</h3>
+          <p className="text-[12px] text-muted mb-3">{selPosts.length} post{selPosts.length===1?'':'s'}</p>
+          {selPosts.length===0&&<p className="text-muted text-[13px]">Nothing planned. Use the button above to add a post for this day.</p>}
+          <div className="flex flex-col gap-3">
+            {selPosts.map(p=>(
+              <div key={p.id} className="border border-line rounded-md p-3 fade-in">
+                <div className="flex items-center justify-between gap-2 mb-1.5"><span className="mono text-[12px] text-muted">{p.time}</span><StatusPill s={p.status}/></div>
+                <p className="text-[13px] line-clamp-3">{p.text}</p>
+                <div className="flex items-center justify-between mt-2"><div className="flex gap-1">{p.platforms.map(k=><PlatformDot key={k} k={k} size={18}/>)}</div>
+                  <button onClick={()=>onDelete(p.id)} className="text-muted hover:text-bad p-1" aria-label="Delete post"><Icon name="Trash2" size={14}/></button></div>
+              </div>))}
+          </div>
+        </Card>
+      </div>
+    </div>);
+};
+
+/* ---------- Inbox ---------- */
+const Inbox=({threads,setThreads,notify})=>{
+  const [grp,setGrp]=useState('All');
+  const [sentF,setSentF]=useState('all');
+  const [activeId,setActiveId]=useState(2);
+  const [reply,setReply]=useState('');
+  const list=threads.filter(t=>(grp==='All'||PLATFORMS[t.platform].group===grp)&&(sentF==='all'||t.sentiment===sentF));
+  const cur=threads.find(t=>t.id===activeId);
+  const open=id=>{setActiveId(id);setThreads(ts=>ts.map(t=>t.id===id?{...t,unread:false}:t))};
+  const send=()=>{
+    if(!reply.trim()||!cur)return;
+    setThreads(ts=>ts.map(t=>t.id===cur.id?{...t,msgs:[...t.msgs,{from:'us',t:reply.trim()}],sentiment:t.sentiment==='urgent'?'neutral':t.sentiment}:t));
+    setReply('');notify('Reply sent on '+PLATFORMS[cur.platform].name);
+  };
+  const unread=threads.filter(t=>t.unread).length;
+  return (
+    <div>
+      <PageHead title="Social Inbox" sub={`${unread} unread across DMs, comments and mentions.`}/>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {['All','Meta','LinkedIn','X','TikTok'].map(g=><button key={g} onClick={()=>setGrp(g)} className={`px-3 h-8 rounded-md text-[12.5px] font-medium border transition ${grp===g?'border-accent bg-accent-soft':'border-line text-muted hover:bg-surface2'}`}>{g}</button>)}
+        <span className="w-px bg-line mx-1"/>
+        {['all','urgent','neutral','positive'].map(s=><button key={s} onClick={()=>setSentF(s)} className={`px-3 h-8 rounded-md text-[12.5px] font-medium border capitalize transition ${sentF===s?'border-accent bg-accent-soft':'border-line text-muted hover:bg-surface2'}`}>{s==='all'?'Any sentiment':s}</button>)}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[340px_1fr] min-h-[520px]">
+        <Card className="overflow-hidden min-w-0">
+          {list.length===0&&<p className="p-6 text-muted text-center text-[13px]">No messages match these filters.</p>}
+          {list.map(t=>{const s=SENT[t.sentiment];return(
+            <button key={t.id} onClick={()=>open(t.id)} className={`w-full text-left p-3 border-b border-line last:border-0 flex gap-3 transition hover:bg-surface2 ${activeId===t.id?'bg-accent-soft':''}`}>
+              <PlatformDot k={t.platform} size={30}/>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2"><span className={`truncate text-[13.5px] ${t.unread?'font-bold':'font-medium'}`}>{t.name}</span><span className="ml-auto text-[11px] text-muted shrink-0">{t.time}</span></div>
+                <p className="text-[12.5px] text-muted truncate">{t.msgs[t.msgs.length-1].t}</p>
+                <div className="flex items-center gap-1.5 mt-1"><span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium ${s.cls}`}><Icon name={s.icon} size={11}/>{s.label}</span><span className="text-[10.5px] text-muted">{t.kind}</span>{t.unread&&<span className="ml-auto w-2 h-2 rounded-full bg-accent"/>}</div>
+              </div>
+            </button>)})}
+        </Card>
+        <Card className="flex flex-col min-w-0">
+          {!cur?<div className="m-auto text-muted p-10">Select a conversation.</div>:(<>
+            <div className="p-4 border-b border-line flex items-center gap-3">
+              <PlatformDot k={cur.platform} size={34}/>
+              <div className="min-w-0"><div className="font-semibold text-[14px] truncate">{cur.name}</div><div className="text-[12px] text-muted truncate">{cur.handle} · {PLATFORMS[cur.platform].name} {cur.kind}</div></div>
+              <span className={`ml-auto inline-flex items-center gap-1 px-2 py-1 rounded text-[11.5px] font-medium ${SENT[cur.sentiment].cls}`}><Icon name={SENT[cur.sentiment].icon} size={12}/>{SENT[cur.sentiment].label}</span>
+            </div>
+            <div className="flex-1 p-4 flex flex-col gap-2.5 overflow-y-auto max-h-[380px]">
+              {cur.msgs.map((m,i)=><div key={i} className={`max-w-[80%] px-3 py-2 rounded-lg text-[13.5px] fade-in ${m.from==='us'?'self-end bg-accent text-accent-fg':'self-start bg-surface2'}`}>{m.t}</div>)}
+            </div>
+            <div className="p-3 border-t border-line">
+              <div className="flex flex-wrap gap-1.5 mb-2"><span className="text-[11px] text-muted self-center mr-1">Quick replies</span>
+                {CANNED.map(c=><button key={c.k} onClick={()=>setReply(c.t)} className="px-2 h-7 rounded border border-line text-[12px] hover:bg-surface2">{c.k}</button>)}</div>
+              <div className="flex gap-2 items-end">
+                <textarea id="reply" aria-label="Reply" value={reply} onChange={e=>setReply(e.target.value)} rows={2} placeholder="Write a reply" className="flex-1 min-w-0 rounded-md border border-line bg-bg p-2 text-[13.5px] resize-none outline-none focus:border-accent"/>
+                <Btn variant="primary" icon="Send" disabled={!reply.trim()} onClick={send}>Send</Btn>
+              </div>
+            </div>
+          </>)}
+        </Card>
+      </div>
+    </div>);
+};
+
+/* ---------- Analytics ---------- */
+const niceMax=v=>{const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return (n<=1?1:n<=2?2:n<=5?5:10)*p};
+const Stat=({icon,label,value,delta,good=true})=>(
+  <Card className="p-4">
+    <div className="flex items-center justify-between text-muted"><span className="text-[12px] uppercase tracking-wider font-medium">{label}</span><Icon name={icon} size={16}/></div>
+    <div className="mono text-[28px] font-medium mt-1.5 leading-none">{value}</div>
+    <div className={`mt-2 inline-flex items-center gap-1 text-[12px] font-medium ${good?'text-good':'text-bad'}`}><Icon name={good?'TrendingUp':'TrendingDown'} size={13}/>{delta}<span className="text-muted font-normal"> vs previous period</span></div>
+  </Card>
+);
+const BarChart=({data,metric,fmt})=>{
+  const W=560,H=250,L=44,R=12,T=14,B=34;
+  const vals=data.map(d=>d[metric]);const max=niceMax(Math.max(...vals));
+  const ticks=[0,0.25,0.5,0.75,1].map(f=>max*f);
+  const bw=(W-L-R)/data.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Channel comparison bar chart">
+      {ticks.map((t,i)=>{const y=T+(H-T-B)*(1-t/max);return(<g key={i}><line x1={L} x2={W-R} y1={y} y2={y} stroke="var(--line)" strokeWidth="1"/><text x={L-6} y={y+3.5} textAnchor="end" fontSize="10" fill="var(--muted)" fontFamily="var(--font-mono)">{fmt(t)}</text></g>)})}
+      {data.map((d,i)=>{const h=(H-T-B)*d[metric]/max,x=L+i*bw+bw*0.2,w=bw*0.6,y=H-B-h;return(
+        <g key={d.k}><rect x={x} y={y} width={w} height={h} rx="2" fill={PLATFORMS[d.k].color}/>
+          <text x={x+w/2} y={y-5} textAnchor="middle" fontSize="10.5" fill="var(--fg)" fontFamily="var(--font-mono)">{fmt(d[metric])}</text>
+          <text x={x+w/2} y={H-B+16} textAnchor="middle" fontSize="11" fill="var(--muted)">{PLATFORMS[d.k].short}</text></g>)})}
+    </svg>);
+};
+const LineChart=({series,labels})=>{
+  const W=560,H=230,L=44,R=14,T=14,B=28;
+  const [hv,setHv]=useState(null);
+  const max=niceMax(Math.max(...series));
+  const n=series.length,x=i=>L+(W-L-R)*i/(n-1),y=v=>T+(H-T-B)*(1-v/max);
+  const pts=series.map((v,i)=>`${x(i)},${y(v)}`).join(' ');
+  const area=`M${x(0)},${H-B} L${pts.replace(/ /g,' L')} L${x(n-1)},${H-B} Z`;
+  const ticks=[0,0.5,1].map(f=>max*f);
+  const tl=[0,Math.floor((n-1)/2),n-1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Reach over time line chart"
+      onMouseLeave={()=>setHv(null)} onMouseMove={e=>{const r=e.currentTarget.getBoundingClientRect();const px=(e.clientX-r.left)/r.width*W;setHv(Math.max(0,Math.min(n-1,Math.round((px-L)/(W-L-R)*(n-1)))))}}>
+      {ticks.map((t,i)=><g key={i}><line x1={L} x2={W-R} y1={y(t)} y2={y(t)} stroke="var(--line)"/><text x={L-6} y={y(t)+3.5} textAnchor="end" fontSize="10" fill="var(--muted)" fontFamily="var(--font-mono)">{fmtNum(t)}</text></g>)}
+      <path d={area} fill="var(--accent)" opacity="0.14"/>
+      <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round"/>
+      <circle cx={x(n-1)} cy={y(series[n-1])} r="4" fill="var(--accent)"/>
+      {tl.map(i=><text key={i} x={x(i)} y={H-8} textAnchor={i===0?'start':i===n-1?'end':'middle'} fontSize="10" fill="var(--muted)">{labels[i]}</text>)}
+      {hv!==null&&<g><line x1={x(hv)} x2={x(hv)} y1={T} y2={H-B} stroke="var(--muted)" strokeDasharray="3 3"/><circle cx={x(hv)} cy={y(series[hv])} r="4.5" fill="var(--surface)" stroke="var(--accent)" strokeWidth="2"/>
+        <g transform={`translate(${Math.min(x(hv)+8,W-R-104)},${T+2})`}><rect width="104" height="38" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="8" y="15" fontSize="10" fill="var(--muted)">{labels[hv]}</text><text x="8" y="30" fontSize="12" fill="var(--fg)" fontFamily="var(--font-mono)">{fmtNum(series[hv])} reach</text></g></g>}
+    </svg>);
+};
+const rangeSeries=(days,mult)=>{
+  const out=[],labels=[];
+  for(let i=days-1;i>=0;i--){const d=new Date(TODAY);d.setDate(d.getDate()-i);
+    const base=17000+Math.sin(i*0.7)*4200+Math.cos(i*0.23)*3000+(days-i)*60;
+    out.push(Math.round(base*mult*(days<=7?1:1)));labels.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}))}
+  return {out,labels};
+};
+const Analytics=({ws})=>{
+  const [range,setRange]=useState(30);
+  const [metric,setMetric]=useState('reach');
+  const m=ws.mult;
+  const data=CHANNEL_STATS.map(c=>({...c,reach:Math.round(c.reach*m*range/30),followers:Math.round(c.followers*m),posts:Math.max(1,Math.round(c.posts*m*range/30))}));
+  const tot=data.reduce((a,c)=>({reach:a.reach+c.reach,followers:a.followers+c.followers,posts:a.posts+c.posts}),{reach:0,followers:0,posts:0});
+  const eng=(data.reduce((a,c)=>a+c.eng*c.reach,0)/tot.reach).toFixed(1);
+  const {out,labels}=useMemo(()=>rangeSeries(range,m),[range,m]);
+  const fmts={reach:fmtNum,eng:v=>v.toFixed(1)+'%',posts:v=>String(Math.round(v))};
+  const ranked=[...data].sort((a,b)=>b[metric]-a[metric]);
+  return (
+    <div>
+      <PageHead title="Analytics & Reports" sub={`${ws.name} · last ${range} days`}>
+        <div className="flex rounded-md border border-line overflow-hidden">{[7,30,90].map(r=><button key={r} onClick={()=>setRange(r)} className={`px-3 h-9 text-[13px] ${range===r?'bg-accent text-accent-fg':'bg-surface text-muted hover:bg-surface2'}`}>{r}d</button>)}</div>
+        <Btn icon="Download" onClick={()=>{}}>Export report</Btn>
+      </PageHead>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+        <Stat icon="Eye" label="Total reach" value={fmtNum(tot.reach)} delta="+12.4%"/>
+        <Stat icon="Heart" label="Engagement rate" value={eng+'%'} delta="+0.6 pts"/>
+        <Stat icon="Users" label="Active followers" value={fmtNum(tot.followers)} delta="+2.1%"/>
+        <Stat icon="Send" label="Posts published" value={String(tot.posts)} delta="-4 posts" good={false}/>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="p-4 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2"><h3 className="font-bold text-[15px]">Channel comparison</h3>
+            <div className="flex gap-1">{[['reach','Reach'],['eng','Engagement'],['posts','Posts']].map(([k,l])=><button key={k} onClick={()=>setMetric(k)} className={`px-2.5 h-7 rounded text-[12px] border ${metric===k?'border-accent bg-accent-soft':'border-line text-muted'}`}>{l}</button>)}</div></div>
+          <BarChart data={data} metric={metric} fmt={fmts[metric]}/>
+        </Card>
+        <Card className="p-4 min-w-0">
+          <h3 className="font-bold text-[15px] mb-2">Reach over time</h3>
+          <LineChart series={out} labels={labels}/>
+        </Card>
+      </div>
+      <Card className="mt-5 overflow-hidden"><div className="scroll-x"><table className="w-full text-[13px] min-w-[520px]">
+        <thead><tr className="text-left text-muted text-[11.5px] uppercase tracking-wider bg-surface2"><th className="px-4 py-2 font-medium">Channel</th><th className="px-4 py-2 font-medium text-right">Reach</th><th className="px-4 py-2 font-medium text-right">Engagement</th><th className="px-4 py-2 font-medium text-right">Followers</th><th className="px-4 py-2 font-medium text-right">Posts</th></tr></thead>
+        <tbody>{ranked.map(c=><tr key={c.k} className="border-t border-line"><td className="px-4 py-2.5"><span className="inline-flex items-center gap-2"><PlatformDot k={c.k} size={20}/>{PLATFORMS[c.k].name}</span></td><td className="px-4 py-2.5 text-right mono">{fmtNum(c.reach)}</td><td className="px-4 py-2.5 text-right mono">{c.eng.toFixed(1)}%</td><td className="px-4 py-2.5 text-right mono">{fmtNum(c.followers)}</td><td className="px-4 py-2.5 text-right mono">{c.posts}</td></tr>)}</tbody>
+      </table></div></Card>
+    </div>);
+};
+
+/* ---------- Dashboard ---------- */
+const Dashboard=({ws,posts,threads,go})=>{
+  const upcoming=posts.filter(p=>p.status==='scheduled'&&p.date>='2026-10-20').sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,4);
+  const urgent=threads.filter(t=>t.sentiment==='urgent');
+  const reach=Math.round(CHANNEL_STATS.reduce((a,c)=>a+c.reach,0)*ws.mult);
+  const drafts=posts.filter(p=>p.status==='draft').length;
+  return (
+    <div>
+      <PageHead title={`Good evening, ${ws.kind==='Solopreneur'?'Maya':'team'}`} sub={`${ws.name} · ${ws.brands}`}>
+        <Btn variant="primary" icon="PenSquare" onClick={()=>go('composer')}>Create post</Btn>
+      </PageHead>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+        <Stat icon="Eye" label="30-day reach" value={fmtNum(reach)} delta="+12.4%"/>
+        <Stat icon="CalendarClock" label="Scheduled" value={String(posts.filter(p=>p.status==='scheduled').length)} delta="+3 this week"/>
+        <Stat icon="FileEdit" label="Drafts" value={String(drafts)} delta="1 needs review" good={false}/>
+        <Stat icon="MessageCircle" label="Unread messages" value={String(threads.filter(t=>t.unread).length)} delta={`${urgent.length} urgent`} good={urgent.length===0}/>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <Card className="p-4 min-w-0">
+          <div className="flex items-center justify-between mb-3"><h3 className="font-bold text-[15px]">Up next</h3><button onClick={()=>go('planner')} className="text-accent text-[13px] font-medium">Open planner</button></div>
+          {upcoming.length===0&&<p className="text-muted">No scheduled posts.</p>}
+          <div className="flex flex-col divide-y divide-line">{upcoming.map(p=>(
+            <div key={p.id} className="py-2.5 flex gap-3 items-start"><div className="mono text-[12px] text-muted w-[88px] shrink-0 pt-0.5">{fmtDate(p.date)}<br/>{p.time}</div>
+              <p className="text-[13.5px] flex-1 min-w-0 line-clamp-2">{p.text}</p><div className="flex gap-1 shrink-0">{p.platforms.map(k=><PlatformDot key={k} k={k} size={18}/>)}</div></div>))}</div>
+        </Card>
+        <Card className="p-4 min-w-0">
+          <div className="flex items-center justify-between mb-3"><h3 className="font-bold text-[15px]">Needs a reply</h3><button onClick={()=>go('inbox')} className="text-accent text-[13px] font-medium">Open inbox</button></div>
+          {urgent.length===0&&<p className="text-muted text-[13px]">No urgent messages. Nice work.</p>}
+          <div className="flex flex-col gap-2.5">{urgent.map(t=>(
+            <button key={t.id} onClick={()=>go('inbox')} className="text-left flex gap-2.5 p-2.5 rounded-md border border-line hover:bg-surface2"><PlatformDot k={t.platform} size={26}/><div className="min-w-0"><div className="text-[13px] font-medium">{t.name} <span className="text-muted font-normal">· {t.time}</span></div><p className="text-[12.5px] text-muted line-clamp-2">{t.msgs[0].t}</p></div></button>))}</div>
+        </Card>
+      </div>
+      <Card className="p-4 mt-5">
+        <h3 className="font-bold text-[15px] mb-3">Channel health</h3>
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">{CHANNEL_STATS.map(c=>(
+          <div key={c.k} className="border border-line rounded-md p-3"><div className="flex items-center gap-2 mb-1.5"><PlatformDot k={c.k} size={20}/><span className="text-[12.5px] font-medium">{PLATFORMS[c.k].short}</span></div><div className="mono text-[18px]">{c.eng.toFixed(1)}%</div><div className="text-[11.5px] text-muted">engagement</div></div>))}</div>
+      </Card>
+    </div>);
+};
+
+/* ---------- Settings ---------- */
+const ROLES=['Owner','Admin','Editor','Approver','Viewer'];
+const Settings=({ws,wsList,setWsId,accounts,setAccounts,notify,members,setMembers,addWorkspace})=>{
+  const [tab,setTab]=useState('accounts');
+  const [newName,setNewName]=useState('');
+  const [inv,setInv]=useState('');
+  const conn=PKEYS.filter(k=>accounts[k].connected).length;
+  const toggleAcc=k=>{setAccounts(a=>({...a,[k]:{...a[k],connected:!a[k].connected}}));notify(accounts[k].connected?PLATFORMS[k].name+' disconnected':PLATFORMS[k].name+' connected via OAuth')};
+  return (
+    <div>
+      <PageHead title="Settings" sub="Connected accounts and organization workspaces."/>
+      <Tabs value={tab} onChange={setTab} tabs={[{id:'accounts',label:'Connected accounts'},{id:'workspaces',label:'Workspaces'},{id:'team',label:'Team & roles'}]}/>
+      {tab==='accounts'&&<div className="fade-in grid gap-3 max-w-3xl">
+        <p className="text-muted text-[13px]">{conn} of {PKEYS.length} networks connected for <b className="text-ink">{ws.name}</b>. Tokens are stored per workspace and are never shared across tenants.</p>
+        {PKEYS.map(k=>{const a=accounts[k];return(
+          <Card key={k} className="p-3.5 flex flex-wrap items-center gap-3">
+            <PlatformDot k={k} size={36}/>
+            <div className="min-w-0 flex-1"><div className="font-semibold text-[14px]">{PLATFORMS[k].name}</div>
+              <div className="text-[12.5px] text-muted truncate">{a.connected?`${a.handle} · token refreshed 2h ago`:'Not connected'}</div></div>
+            {a.connected&&<span className="inline-flex items-center gap-1 text-[12px] text-good bg-good-soft px-2 py-0.5 rounded"><Icon name="CheckCircle2" size={12}/>Healthy</span>}
+            <Btn variant={a.connected?'danger':'primary'} icon={a.connected?'Unplug':'Plug'} onClick={()=>toggleAcc(k)}>{a.connected?'Disconnect':'Connect'}</Btn>
+          </Card>)})}
+      </div>}
+      {tab==='workspaces'&&<div className="fade-in grid gap-4 max-w-3xl">
+        {wsList.map(w=>(
+          <Card key={w.id} className={`p-4 flex flex-wrap items-center gap-3 ${w.id===ws.id?'border-accent':''}`}>
+            <div className="w-10 h-10 rounded-md bg-surface2 flex items-center justify-center font-display font-bold text-[16px]">{w.name[0]}</div>
+            <div className="min-w-0 flex-1"><div className="font-semibold">{w.name}</div><div className="text-[12.5px] text-muted">{w.kind} · {w.plan} plan · {w.seats} seat{w.seats===1?'':'s'}</div></div>
+            {w.id===ws.id?<span className="text-[12px] font-medium text-accent bg-accent-soft px-2 py-1 rounded">Active</span>:<Btn onClick={()=>{setWsId(w.id);notify('Switched to '+w.name)}}>Switch</Btn>}
+          </Card>))}
+        <Card className="p-4">
+          <h3 className="font-bold text-[15px] mb-2">Create workspace</h3>
+          <div className="flex flex-wrap gap-2"><input id="wsname" aria-label="Workspace name" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Workspace or client name" className="flex-1 min-w-[200px] h-9 px-3 rounded-md border border-line bg-bg outline-none focus:border-accent"/>
+            <Btn variant="primary" icon="Plus" disabled={!newName.trim()} onClick={()=>{addWorkspace(newName.trim());setNewName('')}}>Create</Btn></div>
+          <p className="text-[12px] text-muted mt-2">Each workspace gets its own tenant_id, social tokens, media library and inbox.</p>
+        </Card>
+      </div>}
+      {tab==='team'&&<div className="fade-in max-w-3xl">
+        <Card className="overflow-hidden mb-4">{members.map((m,i)=>(
+          <div key={m.email} className="p-3 border-b border-line last:border-0 flex flex-wrap items-center gap-3">
+            <span className="w-8 h-8 rounded-full bg-accent-soft text-accent flex items-center justify-center font-semibold text-[13px]">{m.name[0]}</span>
+            <div className="min-w-0 flex-1"><div className="text-[13.5px] font-medium">{m.name}</div><div className="text-[12px] text-muted truncate">{m.email}</div></div>
+            <select aria-label={`Role for ${m.name}`} value={m.role} disabled={m.role==='Owner'} onChange={e=>setMembers(ms=>ms.map((x,j)=>j===i?{...x,role:e.target.value}:x))} className="h-8 px-2 rounded-md border border-line bg-bg text-[13px]">{ROLES.map(r=><option key={r}>{r}</option>)}</select>
+          </div>))}</Card>
+        <div className="flex flex-wrap gap-2"><input id="inv" aria-label="Invite email" value={inv} onChange={e=>setInv(e.target.value)} placeholder="teammate@company.com" className="flex-1 min-w-[200px] h-9 px-3 rounded-md border border-line bg-bg outline-none focus:border-accent"/>
+          <Btn variant="primary" icon="UserPlus" disabled={!/.+@.+\..+/.test(inv)} onClick={()=>{setMembers(ms=>[...ms,{name:inv.split('@')[0],email:inv,role:'Editor'}]);setInv('');notify('Invite sent')}}>Invite</Btn></div>
+      </div>}
+    </div>);
+};
+
+/* ---------- Architecture Guide ---------- */
+const SCHEMA=[
+  {t:'tenants',n:'One row per organization workspace',c:['id uuid pk','name text','plan text','created_at timestamptz']},
+  {t:'users',n:'Mirrors the auth provider user',c:['id uuid pk','email text unique','full_name text']},
+  {t:'memberships',n:'User-to-tenant link with a role',c:['tenant_id uuid fk','user_id uuid fk','role enum(owner,admin,editor,approver,viewer)']},
+  {t:'social_accounts',n:'Connected networks, tokens encrypted',c:['id uuid pk','tenant_id uuid fk','platform enum','external_id text','access_token_enc bytea','refresh_token_enc bytea','expires_at timestamptz','status text']},
+  {t:'scheduled_posts',n:'The post and its schedule',c:['id uuid pk','tenant_id uuid fk','author_id uuid fk','body text','scheduled_for timestamptz','status enum(draft,scheduled,publishing,published,failed)','job_id text']},
+  {t:'post_targets',n:'One row per network a post goes to',c:['id uuid pk','tenant_id uuid fk','post_id uuid fk','social_account_id uuid fk','body_override text','external_post_id text','error text']},
+  {t:'media_assets',n:'Files stored in object storage',c:['id uuid pk','tenant_id uuid fk','storage_path text','mime text','bytes bigint','width int','height int']},
+  {t:'inbox_messages',n:'Normalized DMs, comments, mentions',c:['id uuid pk','tenant_id uuid fk','social_account_id uuid fk','kind enum','external_id text','sentiment text','received_at timestamptz']},
+];
+const RLS=`-- every tenant-owned table gets the same policy
+alter table scheduled_posts enable row level security;
+
+create policy tenant_isolation on scheduled_posts
+  using (tenant_id in (
+    select tenant_id from memberships
+    where user_id = auth.uid()))
+  with check (tenant_id in (
+    select tenant_id from memberships
+    where user_id = auth.uid()
+      and role in ('owner','admin','editor')));`;
+const STACK=[
+  {i:'Layers',h:'Next.js (App Router)',d:'One codebase for the dashboard, server actions and API routes. Deploy on Vercel or a container host.'},
+  {i:'Database',h:'PostgreSQL via Supabase',d:'Row Level Security enforces tenant isolation in the database, so a missed WHERE clause cannot leak data.'},
+  {i:'Zap',h:'Redis + BullMQ',d:'Delayed jobs publish each post at its scheduled time, with retries, backoff and per-network rate limiting.'},
+  {i:'HardDrive',h:'Object storage',d:'Supabase Storage or S3 for media. Signed URLs, and per-tenant path prefixes.'},
+  {i:'KeyRound',h:'Secrets & tokens',d:'Encrypt OAuth tokens at rest with a KMS-managed key. A refresh job renews them before expiry.'},
+  {i:'Webhook',h:'Webhooks & polling',d:'Network webhooks feed the inbox where available. Polling workers cover the gaps.'},
+];
+const Arch=()=>{
+  const [tab,setTab]=useState('stack');
+  const [apiPick,setApiPick]=useState('hybrid');
+  return (
+    <div>
+      <PageHead title="Developer Architecture Guide" sub="Blueprint for taking this prototype to production."/>
+      <Tabs value={tab} onChange={setTab} tabs={[{id:'stack',label:'Tech stack'},{id:'schema',label:'Multi-tenant schema'},{id:'api',label:'API integration'},{id:'flow',label:'Publish flow'}]}/>
+      {tab==='stack'&&<div className="fade-in grid gap-3 md:grid-cols-2 xl:grid-cols-3">{STACK.map(s=>(
+        <Card key={s.h} className="p-4"><div className="w-9 h-9 rounded-md bg-accent-soft text-accent flex items-center justify-center mb-2.5"><Icon name={s.i} size={18}/></div><h3 className="font-bold text-[15px]">{s.h}</h3><p className="text-muted text-[13px] mt-1">{s.d}</p></Card>))}</div>}
+      {tab==='schema'&&<div className="fade-in">
+        <p className="text-muted text-[13px] mb-3 max-w-3xl">Shared database, shared schema, with a <span className="mono">tenant_id</span> on every row. This is the cheapest model to run and RLS makes it safe. Move a large customer to its own database later if needed.</p>
+        <div className="grid gap-3 md:grid-cols-2 mb-5">{SCHEMA.map(s=>(
+          <Card key={s.t} className="p-4 min-w-0"><div className="flex items-baseline justify-between gap-2"><h3 className="mono font-medium text-accent text-[14px]">{s.t}</h3></div><p className="text-[12px] text-muted mb-2">{s.n}</p>
+            <ul className="mono text-[11.5px] flex flex-col gap-0.5">{s.c.map(c=><li key={c} className="truncate"><span className="text-muted">·</span> {c}</li>)}</ul></Card>))}</div>
+        <h3 className="font-bold text-[15px] mb-2">Row Level Security policy</h3>
+        <pre className="code">{RLS}</pre>
+        <p className="text-[12.5px] text-muted mt-2 max-w-3xl">Background workers use a service role and must set tenant_id explicitly on every query. Treat that code path as the one place isolation depends on review.</p>
+      </div>}
+      {tab==='api'&&<div className="fade-in">
+        <div className="flex flex-wrap gap-2 mb-4">{[['direct','Direct developer portals'],['unified','Unified API wrapper'],['hybrid','Hybrid']].map(([k,l])=><button key={k} onClick={()=>setApiPick(k)} className={`px-3 h-9 rounded-md text-[13px] font-medium border ${apiPick===k?'border-accent bg-accent-soft':'border-line text-muted hover:bg-surface2'}`}>{l}</button>)}</div>
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <Card className="overflow-hidden"><div className="scroll-x"><table className="w-full text-[13px] min-w-[480px]">
+            <thead><tr className="bg-surface2 text-left text-muted text-[11.5px] uppercase tracking-wider"><th className="px-3 py-2 font-medium"></th><th className="px-3 py-2 font-medium">Direct portals</th><th className="px-3 py-2 font-medium">Unified wrapper</th></tr></thead>
+            <tbody>{[
+              ['Time to first post','Weeks per network, plus app review','Days, one integration'],
+              ['Control & feature depth','Full access to each API','Limited to the wrapper\'s feature set'],
+              ['Unit cost at scale','Lower, you pay in engineering','Per-profile or per-post fees'],
+              ['Maintenance','You track every API change','Vendor absorbs most changes'],
+              ['Vendor risk','None','Dependency on one provider'],
+              ['White-label OAuth','Yes, your own app','Depends on plan'],
+            ].map(r=><tr key={r[0]} className="border-t border-line align-top"><td className="px-3 py-2.5 font-medium">{r[0]}</td><td className="px-3 py-2.5 text-muted">{r[1]}</td><td className="px-3 py-2.5 text-muted">{r[2]}</td></tr>)}</tbody>
+          </table></div></Card>
+          <Card className="p-4 h-fit fade-in" key={apiPick}>
+            <div className="text-[11px] uppercase tracking-wider text-accent font-semibold mb-1">{apiPick==='hybrid'?'Recommended':'Option'}</div>
+            {apiPick==='direct'&&<><h3 className="font-bold text-[16px] mb-1">Direct developer portals</h3><p className="text-[13px] text-muted">Register your own app with Meta, LinkedIn, X and TikTok. Best for long-term margin and control, but each network has its own review, scopes and rate limits. Plan for several weeks of approval work per network.</p></>}
+            {apiPick==='unified'&&<><h3 className="font-bold text-[16px] mb-1">Unified API wrapper</h3><p className="text-[13px] text-muted">Use a provider such as Ayrshare, or a similar service, to publish and read analytics through one API. Fastest route to a working product and a good way to validate demand. Check current pricing, supported networks and inbox coverage before committing.</p></>}
+            {apiPick==='hybrid'&&<><h3 className="font-bold text-[16px] mb-1">Start unified, go direct where it pays</h3><p className="text-[13px] text-muted">Launch on a wrapper behind your own <span className="mono">PublisherAdapter</span> interface. Once a network carries enough volume, write a direct adapter for it and switch tenants over. Your queue, schema and UI do not change.</p></>}
+            <pre className="code mt-3">{`interface PublisherAdapter {
+  publish(target: PostTarget): Promise<Result>
+  fetchInbox(acct: SocialAccount): Promise<Msg[]>
+}`}</pre>
+          </Card>
+        </div>
+      </div>}
+      {tab==='flow'&&<div className="fade-in max-w-3xl"><Card className="p-5">
+        <ol className="flex flex-col gap-0">{[
+          ['PenSquare','User schedules a post','Server action validates input and inserts scheduled_posts and post_targets under RLS.'],
+          ['Zap','Job enqueued','BullMQ delayed job keyed by post id, delay = scheduled_for minus now.'],
+          ['Cpu','Worker wakes up','Loads tokens with the service role, refreshes if expired, checks the network rate limit.'],
+          ['Send','Adapter publishes','Each target runs independently. Failures retry with backoff, then mark the target failed.'],
+          ['BellRing','Status and notify','Post status rolls up from targets. Realtime channel updates the planner, failures email the author.'],
+        ].map((s,i,a)=>(
+          <li key={s[1]} className="flex gap-3.5"><div className="flex flex-col items-center"><span className="w-8 h-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0"><Icon name={s[0]} size={15}/></span>{i<a.length-1&&<span className="w-px flex-1 bg-line my-1"/>}</div>
+            <div className="pb-5"><div className="font-semibold text-[14px]">{s[1]}</div><p className="text-[13px] text-muted">{s[2]}</p></div></li>))}</ol>
+      </Card></div>}
+    </div>);
+};
+
+/* ---------- App shell ---------- */
+const App=()=>{
+  const [view,setView]=useState('dashboard');
+  const [collapsed,setCollapsed]=useState(()=>window.innerWidth<900);
+  const [wsList,setWsList]=useState(WORKSPACES);
+  const [wsId,setWsId]=useState('w1');
+  const [wsOpen,setWsOpen]=useState(false);
+  const [posts,setPosts]=useState(SEED_POSTS);
+  const [threads,setThreads]=useState(SEED_THREADS);
+  const [composeDate,setComposeDate]=useState('2026-10-22');
+  const [composeKey,setComposeKey]=useState(0);
+  const [toast,setToast]=useState(null);
+  const [theme,setTheme]=useState(null);
+  const [accounts,setAccounts]=useState({facebook:{connected:true,handle:'Northwind Coffee'},instagram:{connected:true,handle:'@northwindcoffee'},linkedin:{connected:true,handle:'Northwind Coffee Co.'},x:{connected:true,handle:'@northwindcoffee'},tiktok:{connected:false,handle:'@northwind'}});
+  const [members,setMembers]=useState([{name:'Ahsan Ibne Walid',email:'ahsanibnewalid732@gmail.com',role:'Owner'},{name:'Sofia Marin',email:'sofia@harborpine.co',role:'Admin'},{name:'Kenji Aoki',email:'kenji@harborpine.co',role:'Editor'},{name:'Client: Northwind',email:'ops@northwind.coffee',role:'Approver'}]);
+  const ws=wsList.find(w=>w.id===wsId);
+  const notify=useCallback(m=>{setToast(m);clearTimeout(window.__t);window.__t=setTimeout(()=>setToast(null),2600)},[]);
+  useEffect(()=>{const r=document.documentElement;if(theme)r.setAttribute('data-theme',theme);else r.removeAttribute('data-theme')},[theme]);
+  const addPost=p=>{setPosts(ps=>[...ps,{...p,id:Date.now()}]);notify(p.status==='published'?'Published to '+p.platforms.length+' network'+(p.platforms.length>1?'s':''):p.status==='draft'?'Draft saved':'Scheduled for '+fmtDate(p.date)+' at '+p.time);setView('planner')};
+  const go=v=>setView(v);
+  const newOn=d=>{setComposeDate(d<'2026-10-20'?'2026-10-20':d);setComposeKey(k=>k+1);setView('composer')};
+  const addWorkspace=name=>{const id='w'+(wsList.length+1)+Date.now();setWsList(l=>[...l,{id,name,kind:'Agency',plan:'Trial',seats:1,mult:0.4,brands:'New workspace'}]);setWsId(id);notify('Workspace created')};
+  const dark=theme==='dark'||(theme===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const cur=NAV.find(n=>n.id===view);
+  return (
+    <div className="h-full flex">
+      <aside className={`bg-rail text-rail-fg flex flex-col shrink-0 transition-all duration-200 ${collapsed?'w-[64px]':'w-[236px]'}`} style={{paddingTop:'env(safe-area-inset-top,0px)'}}>
+        <div className="h-14 flex items-center gap-2.5 px-4 border-b border-white/10 shrink-0">
+          <span className="w-7 h-7 rounded-md bg-accent text-accent-fg flex items-center justify-center shrink-0"><Icon name="Waves" size={16}/></span>
+          {!collapsed&&<span className="font-display font-bold text-[17px] text-white tracking-tight">Tidepost</span>}
+        </div>
+        <div className="px-2.5 pt-3 relative">
+          <button onClick={()=>setWsOpen(o=>!o)} title={ws.name} className="w-full flex items-center gap-2 p-2 rounded-md bg-rail-active text-left hover:brightness-125">
+            <span className="w-7 h-7 rounded bg-white/10 text-white flex items-center justify-center font-display font-bold text-[13px] shrink-0">{ws.name[0]}</span>
+            {!collapsed&&<><span className="min-w-0 flex-1"><span className="block text-[12.5px] text-white font-medium truncate">{ws.name}</span><span className="block text-[10.5px] opacity-70">{ws.kind} workspace</span></span><Icon name="ChevronsUpDown" size={14}/></>}
+          </button>
+          {wsOpen&&<div className="absolute z-30 left-2.5 top-[58px] w-[224px] bg-surface text-ink border border-line rounded-md shadow-lg p-1 fade-in">
+            {wsList.map(w=><button key={w.id} onClick={()=>{setWsId(w.id);setWsOpen(false);notify('Switched to '+w.name)}} className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[13px] hover:bg-surface2"><span className="truncate flex-1">{w.name}</span>{w.id===wsId&&<Icon name="Check" size={14} className="text-accent"/>}</button>)}
+            <button onClick={()=>{setWsOpen(false);setView('settings')}} className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[13px] text-accent hover:bg-surface2 border-t border-line mt-1"><Icon name="Plus" size={14}/>Manage workspaces</button>
+          </div>}
+        </div>
+        <nav className="flex-1 px-2.5 py-3 flex flex-col gap-0.5 overflow-y-auto">
+          {NAV.map(n=>{const on=view===n.id;const badge=n.id==='inbox'?threads.filter(t=>t.unread).length:0;return(
+            <button key={n.id} onClick={()=>go(n.id)} title={n.label} aria-current={on?'page':undefined}
+              className={`relative flex items-center gap-3 h-10 px-3 rounded-md text-[13.5px] transition ${on?'bg-rail-active text-white':'hover:bg-rail-active hover:text-white'}`}>
+              {on&&<span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-accent"/>}
+              <Icon name={n.icon} size={18} className="shrink-0"/>
+              {!collapsed&&<span className="truncate">{n.label}</span>}
+              {badge>0&&<span className={`mono text-[10.5px] bg-accent text-accent-fg rounded-full px-1.5 ${collapsed?'absolute top-1 right-1':'ml-auto'}`}>{badge}</span>}
+            </button>)})}
+        </nav>
+        <button onClick={()=>setCollapsed(c=>!c)} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'} className="h-11 border-t border-white/10 flex items-center gap-3 px-5 text-[13px] hover:text-white shrink-0" style={{paddingBottom:'env(safe-area-inset-bottom,0px)'}}>
+          <Icon name={collapsed?'PanelLeftOpen':'PanelLeftClose'} size={18}/>{!collapsed&&'Collapse'}
+        </button>
+      </aside>
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="h-14 shrink-0 bg-surface border-b border-line flex items-center gap-3 px-4" style={{paddingTop:'env(safe-area-inset-top,0px)',height:'calc(56px + env(safe-area-inset-top,0px))'}}>
+          <Icon name={cur.icon} size={18} className="text-muted"/><span className="font-display font-bold text-[15px] truncate">{cur.label}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Btn icon="PenSquare" variant="soft" className="hidden sm:inline-flex" onClick={()=>newOn('2026-10-20')}>New post</Btn>
+            <button onClick={()=>setTheme(dark?'light':'dark')} aria-label="Toggle theme" className="w-9 h-9 rounded-md border border-line flex items-center justify-center hover:bg-surface2 text-muted"><Icon name={dark?'Sun':'Moon'} size={16}/></button>
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto" style={{paddingBottom:'env(safe-area-inset-bottom,0px)'}} onClick={()=>wsOpen&&setWsOpen(false)}>
+          <div className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6 fade-in" key={view+wsId}>
+            {view==='dashboard'&&<Dashboard ws={ws} posts={posts} threads={threads} go={go}/>}
+            {view==='planner'&&<Planner posts={posts} onNew={newOn} onDelete={id=>{setPosts(ps=>ps.filter(p=>p.id!==id));notify('Post deleted')}}/>}
+            {view==='composer'&&<Composer key={composeKey} onSubmit={addPost} initialDate={composeDate} notify={notify}/>}
+            {view==='inbox'&&<Inbox threads={threads} setThreads={setThreads} notify={notify}/>}
+            {view==='analytics'&&<Analytics ws={ws}/>}
+            {view==='settings'&&<Settings ws={ws} wsList={wsList} setWsId={setWsId} accounts={accounts} setAccounts={setAccounts} notify={notify} members={members} setMembers={setMembers} addWorkspace={addWorkspace}/>}
+            {view==='arch'&&<Arch/>}
+          </div>
+        </main>
+      </div>
+      {toast&&<div role="status" className="fixed left-1/2 -translate-x-1/2 bg-ink text-bg px-4 py-2.5 rounded-md text-[13px] shadow-lg flex items-center gap-2 z-50 fade-in" style={{bottom:'calc(20px + env(safe-area-inset-bottom,0px))'}}><Icon name="CheckCircle2" size={15}/>{toast}</div>}
+    </div>);
+};
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+</body></html>
