@@ -34,7 +34,7 @@ async function providerFetch(url: string, init: RequestInit) {
   const text = await response.text();
   let body: any;
   try { body = text ? JSON.parse(text) : {}; } catch { body = {}; }
-  if (!response.ok) throw new Error(`Provider API returned HTTP ${response.status}: ${String(body?.error?.message || body?.error_description || body?.message || "request rejected")}`);
+  if (!response.ok || (body?.error && body.error.code !== "ok")) throw new Error(`Provider API returned HTTP ${response.status}: ${String(body?.error?.message || body?.error_description || body?.message || "request rejected")}`);
   return body;
 }
 function requiredEnv(name: string) {
