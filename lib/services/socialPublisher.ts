@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export type Platform = "facebook" | "instagram" | "linkedin" | "x" | "tiktok";
-export type PublishInput = { platform: Platform; text: string; externalAccountId: string; encryptedToken: string; onTokenRefresh?: (ciphertext: string, expiresAt?: Date) => Promise<void> };
+export type PublishInput = { platform: Platform; text: string; mediaUrl?: string | null; externalAccountId: string; encryptedToken: string; onTokenRefresh?: (ciphertext: string, expiresAt?: Date) => Promise<void> };
 type TokenBundle = { accessToken: string; refreshToken?: string; expiresAt?: number };
 type PublishResult = { externalPostId: string; platform: Platform; refreshedEncryptedToken?: string; tokenExpiresAt?: Date };
 
