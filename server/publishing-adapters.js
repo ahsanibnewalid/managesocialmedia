@@ -1,24 +1,12 @@
-/**
- * Platform-specific API publishing belongs here.
- *
- * This registry deliberately fails closed until a platform adapter has been
- * implemented and configured. It must never report a fake successful publish.
- */
-const SUPPORTED_PLATFORMS = new Set([
-  "facebook",
-  "instagram",
-  "linkedin",
-  "x",
-  "tiktok"
-]);
+const { publishToSocialPlatform } = require("../lib/services/socialPublisher.ts");
 
-async function publishToPlatform({ platform }) {
-  if (!SUPPORTED_PLATFORMS.has(platform)) {
-    throw new Error(`Unsupported publishing platform: ${platform}`);
-  }
-  throw new Error(
-    `Publishing adapter for ${platform} is not configured. Connect and validate the provider API before enabling the worker.`
-  );
+const SUPPORTED_PLATFORMS = new Set(["facebook", "instagram", "linkedin", "x", "tiktok"]);
+async function publishToPlatform({ platform, post, account, persistRefreshedToken }) {
+  if (!SUPPORTED_PLATFORMS.has(platform)) throw new Error(`Unsupported publishing platform: ${platform}`);
+  if (!account?.external_id) throw new Error(`No provider account ID is stored for ${platform}`);
+  return publishToSocialPlatform({
+    platform, text:post.text, mediaUrl:post.media_url, externalAccountId:account.external_id,
+    encryptedToken:account.token_ciphertext, onTokenRefresh:persistRefreshedToken
+  });
 }
-
 module.exports = { publishToPlatform };
