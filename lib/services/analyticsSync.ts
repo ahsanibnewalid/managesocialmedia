@@ -8,7 +8,7 @@ async function json(url: string, token: string, init: RequestInit = {}): Promise
   const text = await response.text();
   let body: any = {};
   try { body = text ? JSON.parse(text) : {}; } catch {}
-  if (!response.ok || body.error) throw new Error(`Analytics provider request failed (HTTP ${response.status})`);
+  if (!response.ok || (body.error && body.error.code !== "ok")) throw new Error(`Analytics provider request failed (HTTP ${response.status})`);
   return body;
 }
 function numberOrNull(value: unknown): number | null {
