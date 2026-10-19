@@ -49,7 +49,7 @@ async function requestJson(url: string, init: RequestInit): Promise<any> {
   const text = await response.text();
   let data: any = {};
   try { data = text ? JSON.parse(text) : {}; } catch { /* provider returned non-JSON */ }
-  if (!response.ok || data.error || data.error_description) {
+  if (!response.ok || (data.error && data.error.code !== "ok") || data.error_description) {
     const message = typeof data.error === "string" ? data.error : data.error?.message || data.error_description || `HTTP ${response.status}`;
     throw new Error(`OAuth provider rejected the request: ${String(message).slice(0, 300)}`);
   }
