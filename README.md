@@ -1,69 +1,106 @@
 # Tidepost Console
 
-Tidepost is a social-media management console with a responsive React-based UI and a Node.js REST API foundation. The repository now includes persistent PostgreSQL storage, account registration/login, workspace access control, content CRUD, inbox workflow storage, and audit events.
+Tidepost is a social-media management console built with **Next.js App Router**, TypeScript, PostgreSQL, Redis and BullMQ. The migration preserves the existing Express API as an optional legacy service and keeps the publishing worker as a separate process.
 
-> **Integration status:** Drafts, scheduled-post records, inbox threads and saved replies are persisted by the API. Actual publishing, OAuth account linking, social-network inbox synchronization, media upload, and live analytics ingestion still require platform credentials and provider-specific implementations. Demo content in the UI is not live social data.
+> **Important integration status:** The dashboard, workspace registration/login, post persistence and scheduled-job queue are implemented. The provider publisher currently supports Facebook Page text posts, LinkedIn text posts and X text posts when correctly configured. Instagram and TikTok are deliberately rejected for text-only publishing because their publishing flows require media workflows. OAuth authorization/account linking, provider permissions, webhook sync, analytics ingestion and end-to-end live provider verification are not complete. Never assume a connected account can publish until its provider configuration and scopes have been verified.
 
-## Included
-- Responsive console UI and per-platform post preview concepts for Facebook, Instagram, LinkedIn, X and TikTok.
-- Express API with PostgreSQL schema initialization.
-- Password hashing with bcrypt, JWT authentication and rate-limited authentication endpoints.
-- Workspace membership roles and server-side access checks.
-- Draft/scheduled post create, list, edit and delete.
-- Inbox thread list, unread state, assignment field and saved replies.
-- Workspace overview, audit events, security headers, input validation and parameterized SQL.
+## Stack and requirements
 
-## Requirements
 - Node.js 22+
 - PostgreSQL 14+
-- A strong random JWT_SECRET of at least 32 characters.
+- Redis 6+
+- npm
+- A strong random `JWT_SECRET` (at least 32 characters)
+- A base64-encoded 32-byte `SOCIAL_TOKEN_ENCRYPTION_KEY` for encrypted provider token bundles
 
 ## Run locally
-1. Create a PostgreSQL database named tidepost.
-2. Copy .env.example to .env; configure DATABASE_URL and JWT_SECRET.
-3. Install and start:
 
-    npm install
-    npm start
+1. Create a PostgreSQL database and a Redis instance.
+2. Copy `.env.example` to `.env`; set `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET` and (when working with provider tokens) `SOCIAL_TOKEN_ENCRYPTION_KEY`.
+3. Install dependencies and apply the schema:
 
-4. Open http://localhost:3000 and verify http://localhost:3000/api/health.
+   ```bash
+   npm install
+   npm run db:migrate
+   ```
 
-Tables are created on startup. In production, use TLS, a managed PostgreSQL service with TLS, secret environment variables, regular backups, monitoring and a strong JWT secret. Never commit .env or credentials.
+4. Start the Next.js app:
 
-## API
-Except for health, registration and login, endpoints require Authorization: Bearer <token>.
+   ```bash
+   npm run dev
+   ```
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | /api/health | API and database health |
-| POST | /api/auth/register | Create account and initial workspace |
-| POST | /api/auth/login | Authenticate |
-| GET | /api/auth/me | Current account |
-| GET | /api/workspaces | List accessible workspaces |
-| GET | /api/workspaces/:id/overview | Post, account and inbox counts |
-| GET/POST | /api/workspaces/:id/posts | List/create posts |
-| PATCH/DELETE | /api/workspaces/:id/posts/:postId | Update/delete a post |
-| GET | /api/workspaces/:id/inbox | List inbox threads and saved replies |
-| PATCH | /api/workspaces/:id/inbox/:threadId | Update unread/assignment state |
-| POST | /api/workspaces/:id/inbox/:threadId/replies | Save a reply draft |
-| GET | /api/workspaces/:id/audit | Recent audit events (owner/admin) |
+5. Open `http://localhost:3000`, create an account and sign in. Production uses HTTP-only, same-site session cookies; set HTTPS in production so the cookie is Secure.
+6. For scheduled posts, start the worker in a separate terminal:
 
-Registration JSON: {"name":"Example User","email":"you@example.com","password":"at-least-12-characters"}
+   ```bash
+   npm run worker:publish
+   ```
 
-Post JSON: {"text":"A post draft","platforms":["instagram","facebook"],"status":"draft"}. Scheduled posts also need an ISO-8601 scheduledAt.
+Redis must be available to schedule posts. The worker and Next.js app must share the same database and Redis configuration.
 
-## Scheduled publishing worker foundation
+## Runtime scripts
 
-The repository includes a BullMQ/Redis queue and a separate worker process for scheduled posts. Configure `REDIS_URL` in `.env`, run Redis, then start the API with `npm start` and the worker separately with `npm run worker:publish`. Scheduled posts are queued when created through the workspace posts API. If Redis is unavailable, the post remains saved and the API returns a warning so it can be recovered.
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Next.js development server |
+| `npm run build` | Production Next.js build |
+| `npm start` | Production Next.js server |
+| `npm run typecheck` | TypeScript validation |
+| `npm run db:migrate` | Apply the idempotent initial schema |
+| `npm run worker:publish` | Separate BullMQ publishing worker |
+| `npm run start:legacy` | Optional legacy Express API (uses `PORT`, default 3000; choose a different port if Next.js is running) |
 
-**Publishing is not live yet.** The worker records publish attempts and fails safely because provider-specific OAuth, token decryption, permissions, and actual Facebook/Instagram/LinkedIn/X/TikTok API adapters have not been configured. It never pretends that a post was published. Do not treat the worker foundation as production-ready until real adapters and idempotency/recovery tests are implemented.
+The schema migration is an idempotent initial bootstrap, not yet a versioned migration framework. Back up production data before schema changes.
 
-## Provider integration and production checklist
-1. Register OAuth apps for each platform and configure redirect URLs.
-2. Implement OAuth, token refresh and encrypted token storage. Keep secrets out of browser code.
-3. Implement provider-specific publish workers with retries, rate-limit handling, idempotency and failure review.
-4. Verify scopes, account ownership, webhook signatures and user consent.
-5. Connect each UI view to authenticated API data and remove demo data once workspace data loads.
-6. Add automated API/UI tests, versioned migrations, backup/restore, monitoring and deployment TLS/CORS configuration.
+## Application capabilities
 
-Social APIs differ in permissions and capabilities; connecting an account does not guarantee that every publishing or inbox action is available.
+- Workspace registration, login, logout and role checks.
+- HTTP-only JWT session cookie (12-hour expiry) and password hashing with bcrypt.
+- Workspace-scoped dashboard data from PostgreSQL.
+- Create drafts and schedule posts using Zod validation and server actions.
+- BullMQ queue with retries/backoff and a separate worker process.
+- Publish-attempt records and skip logic for platforms already recorded as successful during retries.
+- AES-256-GCM decryption for provider token bundles; refreshed tokens are re-encrypted before persistence.
+- A conservative dashboard that displays no reach value until analytics ingestion is implemented.
+
+## Provider token format
+
+The publisher expects `social_accounts.token_ciphertext` in this format:
+
+```text
+v1:<base64-iv>:<base64-auth-tag>:<base64-ciphertext>
+```
+
+The decrypted JSON bundle contains `accessToken`, optional `refreshToken`, and optional `expiresAt` (Unix milliseconds). The encryption key is `SOCIAL_TOKEN_ENCRYPTION_KEY`, encoded as base64 and exactly 32 bytes after decoding. Generate a new key with:
+
+```bash
+openssl rand -base64 32
+```
+
+Do not change or rotate this key without a token re-encryption/rotation procedure. Existing plaintext or differently encrypted tokens are not automatically migrated. Tokens and client secrets must never be sent to the browser or committed to Git.
+
+## Provider limitations and environment
+
+- **Facebook Pages:** text posts use the Graph API Page feed endpoint. Requires an authorized Page token and correct Meta permissions.
+- **LinkedIn:** text posts use the Posts API and require `LINKEDIN_API_VERSION`, an approved app and the correct author URN/scopes.
+- **X:** text posts use API v2 and require suitable OAuth 2.0 user context and write scopes.
+- **Instagram:** text-only publishing is disabled; implement the media-container flow before enabling.
+- **TikTok:** text-only publishing is disabled; implement the approved video upload/publish flow before enabling.
+- Meta token refresh is deliberately not guessed; implement and validate the approved Meta token lifecycle for your app type. LinkedIn, X and TikTok refresh calls depend on the stored refresh token and server-side credentials.
+
+The worker must not be treated as production-ready until OAuth/account linking, token encryption on write, provider scopes, token refresh, rate limits, duplicate-send/idempotency behavior and provider sandbox/live tests are complete. Provider APIs can change; verify endpoint versions and permissions against each platform's current official documentation before launch.
+
+## CI verification
+
+GitHub Actions runs dependency installation, TypeScript checking, a Next.js production build and syntax checks for the retained Express/worker code on pushes to `feat/nextjs-migration` and pull requests to `main`. A successful build proves compilation, not live database/Redis connectivity or successful provider publishing.
+
+## Deployment checklist
+
+1. Configure PostgreSQL with TLS and Redis with authentication/TLS where supported.
+2. Set `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `SOCIAL_TOKEN_ENCRYPTION_KEY` and provider credentials in the deployment secret manager.
+3. Run `npm run db:migrate` as a release step; back up the database first.
+4. Deploy `npm run build` and `npm start` for the web app.
+5. Run `npm run worker:publish` as a separate long-running worker process.
+6. Add rate limiting for Next.js registration/login actions, monitoring, backup/restore tests, account disconnect/revocation flows, and a versioned migration system before production use.
+7. Complete OAuth, token storage and refresh, provider permission checks, retry/idempotency tests, and analytics ingestion before advertising live publishing or reach metrics.
