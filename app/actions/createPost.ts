@@ -26,6 +26,7 @@ export async function createPost(_previous: CreatePostState, formData: FormData)
   if (!parsed.success) return { ok:false, message:parsed.error.issues[0]?.message || "Invalid post details." };
   const data = parsed.data;
   if (data.platforms.includes("instagram") && !data.mediaUrl) return { ok:false, message:"Instagram posts require a publicly accessible HTTPS image URL." };
+  if (data.platforms.includes("tiktok") && !data.mediaUrl) return { ok:false, message:"TikTok posts require a publicly accessible HTTPS video URL on a domain approved in your TikTok developer app." };
   const role = await requireWorkspaceRole(user.id, data.workspaceId, ["owner","admin","editor"]);
   if (!role) return { ok:false, message:"Workspace not found or you do not have permission to publish." };
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null;
