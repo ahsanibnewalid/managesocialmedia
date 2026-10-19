@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Pool } = require("pg");
 const { z } = require("zod");
+const { enqueueScheduledPost } = require("./publishing-queue");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -174,7 +175,22 @@ app.post("/api/workspaces/:id/posts",auth,asyncRoute(async(req,res)=>{
   if(d.status==="scheduled" && !d.scheduledAt) return res.status(400).json({error:"scheduledAt is required for scheduled posts"});
   const r=await pool.query("INSERT INTO posts(workspace_id,author_id,text,platforms,status,scheduled_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[id,req.userId,d.text,d.platforms,d.status,d.status==="scheduled"?d.scheduledAt:null]);
   await audit(req.userId,id,"post.created",{postId:r.rows[0].id,status:d.status});
-  res.status(201).json({post:r.rows[0],notice:"Saved in Tidepost. Publishing requires an authorized platform connection."});
+  if (d.status === "scheduled") {
+    try {
+      await enqueueScheduledPost(r.rows[0].id, r.rows[0].scheduled_at);
+    } catch (error) {
+      console.error("Scheduled post saved but could not be queued:", error.message);
+      return res.status(202).json({
+        post: r.rows[0],
+        warning: "Post saved, but scheduling is pending recovery. Configure Redis and run the publishing worker."
+      });
+    }
+    return res.status(201).json({
+      post: r.rows[0],
+      notice: "Post saved and queued. Actual social publishing requires a configured platform adapter."
+    });
+  }
+  res.status(201).json({post:r.rows[0],notice:"Draft saved in Tidepost. Publishing requires an authorized platform connection."});
 }));
 app.patch("/api/workspaces/:id/posts/:postId",auth,asyncRoute(async(req,res)=>{
   const id=Number(req.params.id), postId=Number(req.params.postId);
