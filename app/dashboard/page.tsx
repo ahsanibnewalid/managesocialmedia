@@ -22,7 +22,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const [postsResult, accountsResult, analyticsResult] = await Promise.all([
     db.query("SELECT id::text,text,media_url,platforms,status,scheduled_at,published_at,created_at FROM posts WHERE workspace_id=$1 ORDER BY COALESCE(scheduled_at,created_at) DESC LIMIT 100", [workspace.id]),
     db.query("SELECT id::text,platform,account_name,status FROM social_accounts WHERE workspace_id=$1 ORDER BY platform,account_name", [workspace.id]),
-    db.query("SELECT COALESCE(SUM(pa.reach),0)::text AS total_reach FROM post_analytics pa JOIN posts p ON p.id=pa.post_id WHERE p.workspace_id=$1", [workspace.id])
+    db.query("SELECT SUM(pa.reach)::text AS total_reach,COUNT(pa.reach)::int AS measured_posts FROM post_analytics pa JOIN posts p ON p.id=pa.post_id WHERE p.workspace_id=$1", [workspace.id])
   ]);
   const posts = postsResult.rows;
   const connected = accountsResult.rows.filter((a:any) => a.status === "connected").length;
@@ -33,7 +33,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <article className="stat"><span>Posts loaded</span><strong>{posts.length}</strong><small>Most recent 100</small></article>
       <article className="stat"><span>Scheduled</span><strong>{scheduled}</strong><small>Saved in this workspace</small></article>
       <article className="stat"><span>Connected accounts</span><strong>{connected}</strong><small>Provider connection records</small></article>
-      <article className="stat"><span>Total reach</span><strong>{Number(analyticsResult.rows[0]?.total_reach || 0).toLocaleString()}</strong><small>Latest synced provider metrics</small></article>
+      <article className="stat"><span>Total reach</span><strong>{Number(analyticsResult.rows[0]?.measured_posts || 0) ? Number(analyticsResult.rows[0]?.total_reach || 0).toLocaleString() : "—"}</strong><small>{Number(analyticsResult.rows[0]?.measured_posts || 0) ? "Latest synced provider metrics" : "No reach metrics synced yet"}</small></article>
     </section>
     <div className="columns">
       <section className="panel"><div className="panel-heading"><div><p className="eyebrow">COMPOSER</p><h2>Create a post</h2></div></div>
