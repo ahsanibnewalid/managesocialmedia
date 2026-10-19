@@ -5,6 +5,8 @@ import { decryptSocialToken } from "@/lib/social-token-vault";
 import { revokeProviderToken, type OAuthPlatform } from "@/lib/services/socialOAuth";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== request.nextUrl.origin) return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const { id } = await context.params;
