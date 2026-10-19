@@ -2,7 +2,7 @@
 
 Tidepost is a social-media management console built with **Next.js App Router**, TypeScript, PostgreSQL, Redis and BullMQ. The migration preserves the existing Express API as an optional legacy service and keeps the publishing worker as a separate process.
 
-> **Important integration status:** The dashboard, workspace registration/login, post persistence and scheduled-job queue are implemented. The provider publisher currently supports Facebook Page text posts, LinkedIn text posts and X text posts when correctly configured. Instagram and TikTok are deliberately rejected for text-only publishing because their publishing flows require media workflows. OAuth authorization/account linking, provider permissions, webhook sync, analytics ingestion and end-to-end live provider verification are not complete. Never assume a connected account can publish until its provider configuration and scopes have been verified.
+> **Important integration status:** The dashboard, workspace registration/login, post persistence and scheduled-job queue are implemented. The provider publisher currently supports Facebook Page text posts, Instagram image posts, LinkedIn text posts and X text posts when correctly configured. TikTok is deliberately rejected for text-only publishing because its publishing flow requires video upload. OAuth authorization/account linking, provider permissions, webhook sync, analytics ingestion and end-to-end live provider verification are not complete. Never assume a connected account can publish until its provider configuration and scopes have been verified.
 
 ## Stack and requirements
 
@@ -85,7 +85,7 @@ Do not change or rotate this key without a token re-encryption/rotation procedur
 - **Facebook Pages:** text posts use the Graph API Page feed endpoint. Requires an authorized Page token and correct Meta permissions.
 - **LinkedIn:** text posts use the Posts API and require `LINKEDIN_API_VERSION`, an approved app and the correct author URN/scopes.
 - **X:** text posts use API v2 and require suitable OAuth 2.0 user context and write scopes.
-- **Instagram:** text-only publishing is disabled; implement the media-container flow before enabling.
+- **Instagram:** image posts use the Graph API media-container then media-publish flow. Supply a publicly accessible HTTPS image URL. Video, carousel, Stories and other media types are not implemented.
 - **TikTok:** text-only publishing is disabled; implement the approved video upload/publish flow before enabling.
 - Meta token refresh is deliberately not guessed; implement and validate the approved Meta token lifecycle for your app type. LinkedIn, X and TikTok refresh calls depend on the stored refresh token and server-side credentials.
 
