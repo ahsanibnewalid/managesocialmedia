@@ -2,7 +2,22 @@
 
 Tidepost is a multi-workspace social-media management console built with Next.js App Router, TypeScript, PostgreSQL, Redis and BullMQ. The web application and scheduled publishing worker run as separate processes. The legacy Express API remains available for migration compatibility.
 
-> **Honest status:** The foundation PR is merged into `main`. The Next.js migration and provider OAuth/publishing/analytics work is in a feature branch and must pass its current CI before merging. OAuth account linking and encrypted token storage are implemented for Facebook Pages, Instagram professional accounts linked to a Facebook Page, LinkedIn member accounts, X, and TikTok. Facebook/Instagram/LinkedIn/X publishing adapters and TikTok URL-pull video publishing are implemented, and analytics sync is available for Facebook, Instagram, X public metrics, and TikTok video metrics. Live provider calls have **not** been verified in this development session because authorized provider apps, account grants, credentials, and deployment secrets were not available. LinkedIn analytics is intentionally skipped rather than fabricated. Do not treat a successful build as proof of production readiness.
+> **Honest status:** The application foundation and Next.js migration are merged into `main`. OAuth account linking, encrypted token storage, publishing adapters, and supported analytics sync are implemented, but live provider calls have not been verified in this development session because authorized provider apps, account grants, credentials, and deployment secrets were not available. OAuth account linking and encrypted token storage are implemented for Facebook Pages, Instagram professional accounts linked to a Facebook Page, LinkedIn member accounts, X, and TikTok. Facebook/Instagram/LinkedIn/X publishing adapters and TikTok URL-pull video publishing are implemented, and analytics sync is available for Facebook, Instagram, X public metrics, and TikTok video metrics. Live provider calls have **not** been verified in this development session because authorized provider apps, account grants, credentials, and deployment secrets were not available. LinkedIn analytics is intentionally skipped rather than fabricated. Do not treat a successful build as proof of production readiness.
+
+
+## Visual tour
+
+The images below are **illustrative UI concepts**, not screenshots captured from a running deployment. They help beginners understand the main ideas; actual screens and available data can vary by build and configuration.
+
+| Dashboard overview | Planning calendar |
+|---|---|
+| ![Illustrative Tidepost dashboard preview](docs/images/dashboard-preview.svg) | ![Illustrative content calendar preview](docs/images/calendar-preview.svg) |
+
+| Analytics overview | Beginner setup roadmap |
+|---|---|
+| ![Illustrative analytics preview; sample values only](docs/images/analytics-preview.svg) | ![Beginner setup steps](docs/images/setup-steps.svg) |
+
+For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md).
 
 ## Requirements
 
