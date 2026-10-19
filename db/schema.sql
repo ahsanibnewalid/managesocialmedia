@@ -55,3 +55,22 @@ CREATE TABLE IF NOT EXISTS publish_attempts (
 CREATE INDEX IF NOT EXISTS posts_workspace_schedule_idx ON posts(workspace_id, scheduled_at);
 CREATE INDEX IF NOT EXISTS inbox_workspace_unread_idx ON inbox_threads(workspace_id, unread, created_at DESC);
 CREATE INDEX IF NOT EXISTS publish_attempts_post_idx ON publish_attempts(post_id, started_at DESC);
+
+-- OAuth state is short-lived, hashed at rest, and consumed once by the callback.
+CREATE TABLE IF NOT EXISTS oauth_states (
+ state_hash TEXT PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+ workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+ platform TEXT NOT NULL CHECK(platform IN ('facebook','instagram','linkedin','x','tiktok')),
+ code_verifier TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS oauth_states_expiry_idx ON oauth_states(expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS social_accounts_workspace_platform_external_uidx
+ ON social_accounts(workspace_id,platform,external_id) WHERE external_id IS NOT NULL;
+CREATE TABLE IF NOT EXISTS post_analytics (
+ id BIGSERIAL PRIMARY KEY, post_id BIGINT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+ platform TEXT NOT NULL, external_post_id TEXT NOT NULL,
+ reach BIGINT, impressions BIGINT, likes BIGINT, comments BIGINT, shares BIGINT, clicks BIGINT,
+ synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ UNIQUE(post_id,platform)
+);
+CREATE INDEX IF NOT EXISTS post_analytics_post_idx ON post_analytics(post_id);
