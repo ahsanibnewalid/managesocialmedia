@@ -51,15 +51,16 @@ async function processPost(job) {
 
   const post = found.rows[0];
   if (post.status === "published" || post.status === "draft") return;
-  if (post.status !== "scheduled") return;
+  const recoveringInterruptedJob = post.status === "publishing" && (job.attemptsMade || 0) > 0;
+  if (post.status !== "scheduled" && !recoveringInterruptedJob) return;
   if (!post.scheduled_at || new Date(post.scheduled_at).getTime() > Date.now()) {
     throw new Error("Post is not due yet");
   }
 
   // Claim the post atomically so concurrent workers cannot process it together.
   const claim = await pool.query(
-    "UPDATE posts SET status='publishing', updated_at=now() WHERE id=$1 AND status='scheduled' RETURNING id",
-    [postId]
+    "UPDATE posts SET status='publishing', updated_at=now() WHERE id=$1 AND (status='scheduled' OR (status='publishing' AND $2::boolean)) RETURNING id",
+    [postId, recoveringInterruptedJob]
   );
   if (!claim.rowCount) return;
 
