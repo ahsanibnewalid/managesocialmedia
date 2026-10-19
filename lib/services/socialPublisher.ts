@@ -70,7 +70,9 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
   let refreshedEncryptedToken: string | undefined;
   if (token.expiresAt && token.expiresAt <= Date.now() + 60_000) {
     token = await refreshToken(input.platform, token);
-    refreshedEncryptedToken = encryptToken(token);\n    // Persist rotation before making the publish request so a failed publish does not lose a rotated refresh token.\n    await input.onTokenRefresh?.(refreshedEncryptedToken, token.expiresAt ? new Date(token.expiresAt) : undefined);
+    refreshedEncryptedToken = encryptToken(token);
+    // Persist rotation before making the publish request so a failed publish does not lose a rotated refresh token.
+    await input.onTokenRefresh?.(refreshedEncryptedToken, token.expiresAt ? new Date(token.expiresAt) : undefined);
   }
   let externalPostId = "";
   if (input.platform === "facebook") {
