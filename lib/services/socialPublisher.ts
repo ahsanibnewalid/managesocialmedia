@@ -84,7 +84,7 @@ export async function publishToSocialPlatform(input: PublishInput): Promise<Publ
     externalPostId = result.id;
   } else if (input.platform === "instagram") {
     if (!input.mediaUrl || !input.mediaUrl.startsWith("https://")) throw new Error("Instagram publishing requires a publicly accessible HTTPS image URL");
-    const version = process.env.META_GRAPH_API_VERSION || "v23.0";
+    const version = requiredEnv("META_GRAPH_API_VERSION");
     const container = await providerFetch(`https://graph.facebook.com/${version}/${encodeURIComponent(input.externalAccountId)}/media`, {
       method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
       body:new URLSearchParams({ image_url:input.mediaUrl, caption:input.text, access_token:token.accessToken })
