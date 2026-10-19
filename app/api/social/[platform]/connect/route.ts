@@ -5,13 +5,15 @@ import { db } from "@/lib/db";
 import { createAuthorizationUrl, type OAuthPlatform } from "@/lib/services/socialOAuth";
 
 const platforms = new Set(["facebook", "instagram", "linkedin", "x", "tiktok"]);
-export async function GET(request: NextRequest, context: { params: Promise<{ platform: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ platform: string }> }) {
+  if (request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
   const user = await getSessionUser();
   if (!user) return NextResponse.redirect(new URL("/login?error=auth", request.url));
   const { platform: rawPlatform } = await context.params;
   if (!platforms.has(rawPlatform)) return NextResponse.json({ error: "Unsupported platform" }, { status: 400 });
   const platform = rawPlatform as OAuthPlatform;
-  const workspaceId = Number(request.nextUrl.searchParams.get("workspace"));
+  const formData = await request.formData();
+  const workspaceId = Number(formData.get("workspaceId"));
   if (!Number.isSafeInteger(workspaceId) || workspaceId <= 0 || !await requireWorkspaceRole(user.id, workspaceId, ["owner", "admin"])) {
     return NextResponse.json({ error: "Workspace administrator access is required" }, { status: 403 });
   }
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pla
   );
   try {
     const target = createAuthorizationUrl(platform, state, challenge);
-    return NextResponse.redirect(target);
+    return NextResponse.redirect(target, 303);
   } catch (error) {
     await db.query("DELETE FROM oauth_states WHERE state_hash=$1", [createHash("sha256").update(state).digest("hex")]);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Provider OAuth is not configured" }, { status: 503 });
