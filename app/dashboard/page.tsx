@@ -10,7 +10,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const params = await searchParams;
-  const workspacesResult = await db.query<Workspace>(
+  const workspacesResult = await db.query(
     "SELECT w.id::text,w.name,wm.role FROM workspaces w JOIN workspace_members wm ON wm.workspace_id=w.id WHERE wm.user_id=$1 ORDER BY w.created_at ASC",
     [user.id]
   );
