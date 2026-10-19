@@ -18,7 +18,7 @@ function getPool(): Pool {
 }
 // Lazily initialize PostgreSQL so next build can compile without deployment secrets.
 export const db = {
-  query: ((...args: any[]) => getPool().query(...args)) as Pool["query"],
+  query: (text: string, values?: unknown[]) => getPool().query(text, values as any[]),
   connect: () => getPool().connect(),
   end: () => getPool().end()
 };
