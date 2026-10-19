@@ -5,7 +5,7 @@ async function publishToPlatform({ platform, post, account, persistRefreshedToke
   if (!SUPPORTED_PLATFORMS.has(platform)) throw new Error(`Unsupported publishing platform: ${platform}`);
   if (!account?.external_id) throw new Error(`No provider account ID is stored for ${platform}`);
   return publishToSocialPlatform({
-    platform, text:post.text, externalAccountId:account.external_id,
+    platform, text:post.text, mediaUrl:post.media_url, externalAccountId:account.external_id,
     encryptedToken:account.token_ciphertext, onTokenRefresh:persistRefreshedToken
   });
 }
