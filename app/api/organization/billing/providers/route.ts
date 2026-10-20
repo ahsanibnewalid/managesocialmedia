@@ -35,7 +35,6 @@ export async function PUT(request: NextRequest) {
   const {organizationId,provider,enabled,mode,credentials}=parsed.data;
   const member = await db.query("SELECT role FROM saas_organization_members WHERE organization_id=$1 AND user_id=$2",[organizationId,user.id]);
   if (!["owner","admin","billing"].includes(member.rows[0]?.role)) return NextResponse.json({error:"Organization billing permission required"},{status:403});
-  if (provider==="sslcommerz" && (!credentials.storeId || !credentials.storePassword)) return NextResponse.json({error:"SSLCOMMERZ Store ID and Store Password are required"},{status:400});
   if (provider==="international" && enabled) return NextResponse.json({error:"International checkout is not implemented yet. Keep this provider disabled until a supported adapter is added and tested."},{status:400});
   const allowedCredentialKeys = provider === "sslcommerz" ? new Set(["storeId", "storePassword"]) : new Set<string>();
   if (Object.keys(credentials).some(key => !allowedCredentialKeys.has(key))) {
