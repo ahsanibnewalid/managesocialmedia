@@ -44,6 +44,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run db:migrate
+      - name: Verify migrations are repeatable
+        run: npm run db:migrate
       - run: npm test
       - run: npm run build
       - run: node --check server/index.js
