@@ -53,7 +53,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 ### High — Release evidence is incomplete
 
-- GitHub Actions Production readiness run #47 (`39379922370`) passed dependency installation, enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #160 (`39379922315`) passed `npm ci`, typecheck, `db:migrate`, tests against configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. The new HTTP tenant-isolation test passed as part of the Node.js test suite.
+- GitHub Actions Production readiness run #50 (`39380127803`) passed dependency installation, enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #163 (`39380127742`) passed `npm ci`, typecheck, `db:migrate`, tests against configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. The HTTP tenant-isolation test passed as part of the Node.js test suite.
 - A committed `package-lock.json` (lockfile v3) is now present. Both CI workflows use `npm ci`; the current Node.js checks passed `npm ci` on the committed lockfile.
 - A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current enforced CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The resolved lockfile is committed and `npm ci` has passed. CI now tests actual cross-tenant HTTP reads and writes against a disposable PostgreSQL/Redis environment. Migration rollback/recovery, backup restore, and Android build have not been verified.
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
@@ -69,6 +69,16 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Verification:** After correcting the test fixture, the current CI runs passed the complete automated test suite and production build (run #27) plus the database-migration, integration-enabled test, build and server syntax/import checks (run #140).
 
+### High — The legacy API applied schema DDL on every startup
+
+**Affected path:** `server/index.js`.
+
+**Evidence:** The legacy server embedded a second copy of the database schema and executed it during startup, including dropping and recreating the `posts` status constraint. That duplicated `db/schema.sql`, blurred the migration boundary, and could create unnecessary table locks or concurrent-startup races.
+
+**Change on audit branch:** Removed the embedded DDL. The server now checks that required tables exist and tells operators to run `npm run db:migrate` before starting if the schema is missing. The schema migration is a controlled deployment step rather than an implicit startup side effect.
+
+**Verification:** Current CI run #50 passed the production build and automated tests; Node.js checks run #163 passed the migration command, the HTTP tenant-isolation integration test (which starts the API after migration), build, and server syntax/import checks. A versioned migration framework and rollback/recovery testing remain outstanding.
+
 ### High — Legacy Express runtime dependencies were missing from the declared package manifest
 
 **Affected path:** `package.json` and the legacy Express server entry point `server/index.js`.
@@ -77,7 +87,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Change on audit branch:** Added `express`, `helmet`, and `express-rate-limit` as declared runtime dependencies and regenerated/committed `package-lock.json`. Both CI workflows use `npm ci` against the committed lockfile.
 
-**Verification:** The subsequent Node.js checks passed `npm ci`, schema migration, the end-to-end HTTP tenant-isolation test, the production build, and server syntax/import checks. Production-readiness checks also passed typecheck, tests, build and the zero-vulnerability dependency audit.
+**Verification:** Node.js checks run #163 passed `npm ci`, schema migration, the end-to-end HTTP tenant-isolation test, production build, and server syntax/import checks. Production-readiness run #50 also passed typecheck, tests, build and the zero-vulnerability dependency audit.
 
 ### Medium — App Router login and registration actions lacked shared rate limiting
 
@@ -87,7 +97,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Change on audit branch:** Added atomic Redis-backed sliding-window counters keyed by a SHA-256 digest of the normalized email and, when supplied by the reverse proxy, the client IP. Login is limited to 10 attempts per 15 minutes and registration to 8 attempts per hour for each dimension. The limiter fails closed in production if Redis is unavailable and returns a safe user-facing message. The reverse proxy must overwrite `X-Forwarded-For`; the implementation uses the last forwarded hop to reduce spoofing risk. Added unit tests for counter increments, dimensions and invalid configuration.
 
-**Verification:** The production-readiness and Node.js workflows passed typecheck, automated tests, and production build after this change. The Node.js workflow also has configured Redis/PostgreSQL services. A live multi-instance/proxy deployment test remains outstanding.
+**Verification:** Production-readiness run #50 and Node.js checks run #163 passed typecheck, automated tests, and production build after this change. The Node.js workflow also has configured Redis/PostgreSQL services. A live multi-instance/proxy deployment test remains outstanding.
 
 ## Official SSLCOMMERZ documentation review
 
