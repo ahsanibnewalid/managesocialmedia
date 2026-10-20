@@ -21,7 +21,7 @@ For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BE
 
 ## Android app
 
-A native Kotlin + Jetpack Compose Android companion app is being developed in [`android-app/`](android-app/) with its current scope and build instructions in the [Android App Guide](docs/ANDROID_APP.md). The current increment is a UI/build scaffold; live login, workspace data, publishing, and analytics integration are not yet complete. GitHub Actions builds a test APK when Android app files change.
+A native Kotlin + Jetpack Compose Android companion app lives in [`android-app/`](android-app/) with build instructions in the [Android App Guide](docs/ANDROID_APP.md). Current phone-to-web helpers include locally saved caption drafts, copy/share actions, a saved HTTPS console URL, and a shortcut to open the web console. Drafts are local to the phone and do **not** sync across devices yet. Live login, workspace data, scheduling, publishing, and analytics integration remain incomplete. GitHub Actions builds a test APK when Android app files change.
 
 ## Requirements
 
