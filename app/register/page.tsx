@@ -4,7 +4,9 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const message = params.error === "exists" ? "An account with that email already exists." :
     params.error === "invalid" ? "Check your name, email and password (12 characters minimum)." :
-    params.error === "failed" ? "Registration could not be completed. Please try again." : "";
+    params.error === "failed" ? "Registration could not be completed. Please try again." :
+    params.error === "rate-limit" ? "Too many registration attempts. Please wait before trying again." :
+    params.error === "unavailable" ? "Registration is temporarily unavailable. Please try again later." : "";
   return <main className="auth-shell"><section className="auth-card">
     <p className="eyebrow">TIDEPOST CONSOLE</p><h1>Create your workspace</h1>
     <p className="muted">One account creates your first private workspace.</p>
