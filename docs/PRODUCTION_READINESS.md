@@ -7,6 +7,8 @@ This runbook is an evidence checklist, not a claim that every item is already co
 Do not label a release production-ready until each required item has evidence recorded in the release/incident log.
 
 - [ ] CI passes on the exact commit to be deployed: typecheck, automated tests, production build.
+- [ ] Confirm `APP_URL` is the canonical external origin and that cookie-authenticated billing mutations reject missing or cross-origin `Origin` headers.
+- [ ] Confirm a committed lockfile exists and `npm ci` succeeds on the exact release commit.
 - [ ] Dependency audit reviewed and all critical/high issues fixed or explicitly risk-accepted: `npm audit --omit=dev` and full `npm audit`.
 - [ ] Secrets are set in the hosting secret manager, never committed to Git, logs, browser code, or screenshots.
 - [ ] `NODE_ENV=production`; `APP_URL` is HTTPS and exactly matches each provider's registered callback.
