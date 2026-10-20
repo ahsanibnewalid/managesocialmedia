@@ -2,8 +2,7 @@
 
 Tidepost is a multi-workspace social-media management console built with Next.js App Router, TypeScript, PostgreSQL, Redis and BullMQ. The web application and scheduled publishing worker run as separate processes. The legacy Express API remains available for migration compatibility.
 
-> **Honest status:** The application foundation and Next.js migration are merged into `main`. OAuth account linking, encrypted token storage, publishing adapters, and supported analytics sync are implemented, but live provider calls have not been verified in this development session because authorized provider apps, account grants, credentials, and deployment secrets were not available. OAuth account linking and encrypted token storage are implemented for Facebook Pages, Instagram professional accounts linked to a Facebook Page, LinkedIn member accounts, X, and TikTok. Facebook/Instagram/LinkedIn/X publishing adapters and TikTok URL-pull video publishing are implemented, and analytics sync is available for Facebook, Instagram, X public metrics, and TikTok video metrics. Live provider calls have **not** been verified in this development session because authorized provider apps, account grants, credentials, and deployment secrets were not available. LinkedIn analytics is intentionally skipped rather than fabricated. Do not treat a successful build as proof of production readiness.
-
+> **Release status:** Not yet verified as production-ready. The core app and provider adapters are implemented, but live provider flows require authorized developer apps and test accounts. LinkedIn analytics is not implemented, and provider-side exactly-once publishing cannot be guaranteed where idempotency is unavailable. See the [Production Readiness Runbook](docs/PRODUCTION_READINESS.md) for release gates.
 
 ## Visual tour
 
