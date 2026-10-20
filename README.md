@@ -97,7 +97,7 @@ The web process and worker must use the same PostgreSQL, Redis and token-encrypt
 | `npm run worker:publish` | Scheduled publishing worker |
 | `npm run start:legacy` | Optional legacy Express API |
 
-The schema bootstrap is not yet a versioned migration framework. Back up production data before applying schema changes. For production, replace this with ordered, versioned migrations and a rollback plan.
+Database changes are applied from ordered SQL files in `db/migrations/`. `npm run db:migrate` takes a PostgreSQL advisory lock, applies each migration transactionally, records its SHA-256 checksum, skips already-applied files, and refuses to run if an applied migration was edited. Add a new numbered migration for every schema change; do not edit an applied migration. The initial migration is designed to adopt existing schemas idempotently, but always back up production data and test restore/rollback procedures before deployment.
 
 ## OAuth and account linking
 
