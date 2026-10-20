@@ -42,6 +42,6 @@ test("token vault rejects malformed envelope parts and extra fields", () => {
   const ciphertext = encryptSocialToken({ accessToken: "x" });
   assert.throws(() => decryptSocialToken(ciphertext + ":extra"), /Unsupported encrypted token format/);
   const parts = ciphertext.split(":");
-  parts[1] = parts[1].replace(/=$/, "");
+  parts[1] = parts[1] + "=";
   assert.throws(() => decryptSocialToken(parts.join(":")), /Malformed encrypted token/);
 });
