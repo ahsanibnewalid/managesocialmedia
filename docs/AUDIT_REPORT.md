@@ -53,9 +53,9 @@ This report records evidence gathered during source review and distinguishes cod
 
 ### High — Release evidence is incomplete
 
-- GitHub Actions Production readiness run #38 (`39379180752`) passed dependency installation, the enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #151 (`39379180779`) passed `npm ci`, typecheck, `db:migrate`, tests with configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. Both workflows passed after the authentication rate-limit changes and before this report update.
+- GitHub Actions Production readiness run #47 (`39379922370`) passed dependency installation, enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #160 (`39379922315`) passed `npm ci`, typecheck, `db:migrate`, tests against configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. The new HTTP tenant-isolation test passed as part of the Node.js test suite.
 - A committed `package-lock.json` (lockfile v3) is now present. Both CI workflows use `npm ci`; the current Node.js checks passed `npm ci` on the committed lockfile.
-- A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current enforced CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The resolved lockfile is committed and `npm ci` has passed. Android build has not been verified here.
+- A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current enforced CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The resolved lockfile is committed and `npm ci` has passed. CI now tests actual cross-tenant HTTP reads and writes against a disposable PostgreSQL/Redis environment. Migration rollback/recovery, backup restore, and Android build have not been verified.
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
 - No real or sandbox SSLCOMMERZ payment was attempted. International payments are not verified or enabled. No real social accounts or live posts were used.
 
@@ -68,6 +68,16 @@ This report records evidence gathered during source review and distinguishes cod
 **Change on audit branch:** Both code paths now require canonical base64 encoding of an exact 32-byte key, validate the AES-GCM IV/tag/ciphertext encodings and lengths, require exactly four envelope fields, and validate decrypted token bundle shapes. Added regression tests for non-canonical keys and malformed token envelopes.
 
 **Verification:** After correcting the test fixture, the current CI runs passed the complete automated test suite and production build (run #27) plus the database-migration, integration-enabled test, build and server syntax/import checks (run #140).
+
+### High — Legacy Express runtime dependencies were missing from the declared package manifest
+
+**Affected path:** `package.json` and the legacy Express server entry point `server/index.js`.
+
+**Evidence:** The HTTP tenant-isolation integration test initially failed on a clean CI install because `server/index.js` could not resolve `express`. The legacy server also imports `helmet` and `express-rate-limit`, which were not declared direct dependencies. Syntax checks alone did not detect the runtime startup failure.
+
+**Change on audit branch:** Added `express`, `helmet`, and `express-rate-limit` as declared runtime dependencies and regenerated/committed `package-lock.json`. Both CI workflows use `npm ci` against the committed lockfile.
+
+**Verification:** The subsequent Node.js checks passed `npm ci`, schema migration, the end-to-end HTTP tenant-isolation test, the production build, and server syntax/import checks. Production-readiness checks also passed typecheck, tests, build and the zero-vulnerability dependency audit.
 
 ### Medium — App Router login and registration actions lacked shared rate limiting
 
