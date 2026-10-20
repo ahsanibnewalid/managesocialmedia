@@ -16,7 +16,7 @@ The images below are **illustrative UI concepts**, not screenshots captured from
 |---|---|
 | ![Illustrative analytics preview; sample values only](docs/images/analytics-preview.svg) | ![Beginner setup steps](docs/images/setup-steps.svg) |
 
-For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md).
+For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md). For the intended agency subscription business model, owner controls, tenant-isolation requirements, and staged SaaS launch gates, see the [Agency SaaS Roadmap](docs/AGENCY_SAAS_ROADMAP.md).
 
 
 ## Android app
