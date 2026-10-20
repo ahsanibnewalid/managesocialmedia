@@ -28,6 +28,22 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Dependency audit summary
+        run: |
+          npm audit --json > /tmp/npm-audit-full.json || true
+          npm audit --omit=dev --json > /tmp/npm-audit-prod.json || true
+          node - <<'NODE'
+          const fs = require("node:fs");
+          for (const [label, file] of [["full", "/tmp/npm-audit-full.json"], ["production", "/tmp/npm-audit-prod.json"]]) {
+            const report = JSON.parse(fs.readFileSync(file, "utf8"));
+            const metadata = report.metadata?.vulnerabilities || {};
+            const items = Object.entries(report.vulnerabilities || {}).map(([name, item]) => ({
+              name, severity: item.severity, range: item.range, fixAvailable: item.fixAvailable,
+              advisories: (item.via || []).filter(v => typeof v === "object").map(v => ({ title: v.title, url: v.url }))
+            }));
+            console.log(JSON.stringify({ audit: label, totals: metadata, packages: items }, null, 2));
+          }
+          NODE
       - name: TypeScript typecheck
         run: npm run typecheck
       - name: Automated tests
