@@ -31,3 +31,17 @@ test("token vault rejects missing or incorrectly sized encryption keys", () => {
   process.env.SOCIAL_TOKEN_ENCRYPTION_KEY = Buffer.alloc(16).toString("base64");
   assert.throws(() => encryptSocialToken({ accessToken: "x" }), /exactly 32 bytes/);
 });
+
+test("token vault rejects non-canonical base64 encryption keys", () => {
+  process.env.SOCIAL_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64").replace(/=$/, "");
+  assert.throws(() => encryptSocialToken({ accessToken: "x" }), /canonical base64/);
+});
+
+test("token vault rejects malformed envelope parts and extra fields", () => {
+  process.env.SOCIAL_TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
+  const ciphertext = encryptSocialToken({ accessToken: "x" });
+  assert.throws(() => decryptSocialToken(ciphertext + ":extra"), /Unsupported encrypted token format/);
+  const parts = ciphertext.split(":");
+  parts[1] = parts[1] + "=";
+  assert.throws(() => decryptSocialToken(parts.join(":")), /Malformed encrypted token/);
+});

@@ -7,7 +7,7 @@ Tidepost is the platform vendor. Agencies, creators, celebrities, freelancers, i
 ## What this branch adds
 
 - Additive PostgreSQL tables for plan definitions, SaaS organizations and roles, subscriptions, billing transactions, webhook idempotency, and platform audit events.
-- The tables are appended to `db/schema.sql`, which is the schema source read by the existing `npm run db:migrate` command.
+- The tables are included in the initial versioned migration under `db/migrations/`; future schema changes must be added as new numbered migrations and applied with `npm run db:migrate`.
 - Server-only SSLCOMMERZ environment variable placeholders in `.env.example`.
 - No real payment is accepted by this schema-only foundation. It does not yet implement checkout/API routes, callback validation, recurring renewals, refunds, owner UI, or subscription enforcement. Do not launch or charge users based on this change alone.
 

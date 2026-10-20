@@ -31,59 +31,21 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false, limit: "20kb" }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false }));
 
-const schema = `
-CREATE TABLE IF NOT EXISTS users (
- id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
- password_hash TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS workspaces (
- id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS workspace_members (
- workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
- user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- role TEXT NOT NULL DEFAULT 'owner' CHECK (role IN ('owner','admin','editor','viewer')),
- PRIMARY KEY(workspace_id,user_id)
-);
-CREATE TABLE IF NOT EXISTS posts (
- id BIGSERIAL PRIMARY KEY, workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
- author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, text TEXT NOT NULL,
- platforms TEXT[] NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','scheduled','published','failed')),
- scheduled_at TIMESTAMPTZ, published_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS social_accounts (
- id BIGSERIAL PRIMARY KEY, workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
- platform TEXT NOT NULL, account_name TEXT NOT NULL, external_id TEXT,
- status TEXT NOT NULL DEFAULT 'disconnected' CHECK(status IN ('connected','disconnected','error')),
- token_ciphertext TEXT, token_expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS inbox_threads (
- id BIGSERIAL PRIMARY KEY, workspace_id BIGINT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
- platform TEXT NOT NULL, external_thread_id TEXT, contact_name TEXT NOT NULL,
- kind TEXT NOT NULL DEFAULT 'comment', body TEXT NOT NULL, sentiment TEXT NOT NULL DEFAULT 'neutral',
- unread BOOLEAN NOT NULL DEFAULT true, assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL,
- created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS inbox_replies (
- id BIGSERIAL PRIMARY KEY, thread_id BIGINT NOT NULL REFERENCES inbox_threads(id) ON DELETE CASCADE,
- author_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, body TEXT NOT NULL,
- created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS audit_log (
- id BIGSERIAL PRIMARY KEY, user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
- workspace_id BIGINT REFERENCES workspaces(id) ON DELETE CASCADE, action TEXT NOT NULL,
- metadata JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_status_check;
-ALTER TABLE posts ADD CONSTRAINT posts_status_check CHECK(status IN ('draft','scheduled','publishing','published','failed'));
-CREATE INDEX IF NOT EXISTS posts_workspace_schedule_idx ON posts(workspace_id, scheduled_at);
-CREATE INDEX IF NOT EXISTS inbox_workspace_unread_idx ON inbox_threads(workspace_id, unread, created_at DESC);
-`;
 let dbReady;
 async function initDb() {
-  if (dbReady) return dbReady;
-  dbReady = (async () => { await pool.query(schema); })();
+  if (!dbReady) {
+    dbReady = pool.query(
+      "SELECT to_regclass('public.users') AS users, to_regclass('public.workspaces') AS workspaces, to_regclass('public.workspace_members') AS memberships, to_regclass('public.posts') AS posts"
+    ).then(result => {
+      const schema = result.rows[0];
+      if (!schema.users || !schema.workspaces || !schema.memberships || !schema.posts) {
+        throw new Error("Database schema is not initialized; run npm run db:migrate before starting the API");
+      }
+    }).catch(error => {
+      dbReady = undefined;
+      throw error;
+    });
+  }
   return dbReady;
 }
 const asyncRoute = fn => (req,res,next) => Promise.resolve(fn(req,res,next)).catch(next);

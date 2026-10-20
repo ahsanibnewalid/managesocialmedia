@@ -47,3 +47,110 @@ test("PostgreSQL and Redis live integration availability", { skip: !(hasDatabase
 });
 
 after(async () => { await pool?.end(); });
+
+
+test("HTTP API denies cross-workspace reads and writes", {
+  skip: !hasDatabase ? "DATABASE_URL is not configured" : false,
+  timeout: 60_000
+}, async () => {
+  const { spawn } = await import("node:child_process");
+  const suffix = randomUUID();
+  const emailA = `tenant-a-${suffix}@example.test`;
+  const emailB = `tenant-b-${suffix}@example.test`;
+  const port = 20_000 + Math.floor(Math.random() * 20_000);
+  const secret = randomUUID() + randomUUID();
+  const server = spawn(process.execPath, ["server/index.js"], {
+    env: { ...process.env, PORT: String(port), JWT_SECRET: secret, NODE_ENV: "test" },
+    stdio: ["ignore", "ignore", "pipe"]
+  });
+  let stderr = "";
+  server.stderr.setEncoding("utf8");
+  server.stderr.on("data", chunk => { stderr += chunk; });
+
+  const api = async (path: string, token?: string, init: RequestInit = {}) => fetch(`http://127.0.0.1:${port}${path}`, {
+    ...init,
+    headers: {
+      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers || {})
+    },
+    signal: AbortSignal.timeout(5_000)
+  });
+
+  try {
+    let ready = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (server.exitCode !== null) throw new Error(`API process exited early: ${stderr}`);
+      try {
+        const response = await api("/api/health");
+        if (response.ok) { ready = true; break; }
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    assert.equal(ready, true, `API server did not become healthy: ${stderr}`);
+
+    const registrationA = await api("/api/auth/register", undefined, {
+      method: "POST",
+      body: JSON.stringify({ name: "Tenant A", email: emailA, password: "TestPassword-A-123!" })
+    });
+    assert.equal(registrationA.status, 201);
+    const accountA = await registrationA.json() as { token: string; workspace: { id: number } };
+
+    const registrationB = await api("/api/auth/register", undefined, {
+      method: "POST",
+      body: JSON.stringify({ name: "Tenant B", email: emailB, password: "TestPassword-B-123!" })
+    });
+    assert.equal(registrationB.status, 201);
+    const accountB = await registrationB.json() as { token: string; workspace: { id: number } };
+
+    const listedB = await api("/api/workspaces", accountB.token);
+    assert.equal(listedB.status, 200);
+    const listedData = await listedB.json() as { workspaces: Array<{ id: number }> };
+    assert.equal(listedData.workspaces.some(workspace => Number(workspace.id) === Number(accountA.workspace.id)), false);
+
+    const postResponse = await api(`/api/workspaces/${accountA.workspace.id}/posts`, accountA.token, {
+      method: "POST",
+      body: JSON.stringify({ text: "Private tenant isolation test", platforms: ["facebook"], status: "draft" })
+    });
+    assert.equal(postResponse.status, 201);
+    const postData = await postResponse.json() as { post: { id: number } };
+    const postId = postData.post.id;
+
+    for (const path of [
+      `/api/workspaces/${accountA.workspace.id}/overview`,
+      `/api/workspaces/${accountA.workspace.id}/posts`,
+      `/api/workspaces/${accountA.workspace.id}/inbox`,
+      `/api/workspaces/${accountA.workspace.id}/audit`
+    ]) {
+      const response = await api(path, accountB.token);
+      assert.equal(response.status, 404, `cross-tenant read should be denied: ${path}`);
+    }
+
+    const crossTenantCreate = await api(`/api/workspaces/${accountA.workspace.id}/posts`, accountB.token, {
+      method: "POST",
+      body: JSON.stringify({ text: "Unauthorized post", platforms: ["facebook"], status: "draft" })
+    });
+    assert.equal(crossTenantCreate.status, 404);
+
+    const crossTenantPatch = await api(`/api/workspaces/${accountA.workspace.id}/posts/${postId}`, accountB.token, {
+      method: "PATCH",
+      body: JSON.stringify({ text: "Unauthorized edit" })
+    });
+    assert.equal(crossTenantPatch.status, 404);
+
+    const crossTenantDelete = await api(`/api/workspaces/${accountA.workspace.id}/posts/${postId}`, accountB.token, {
+      method: "DELETE"
+    });
+    assert.equal(crossTenantDelete.status, 404);
+
+    const ownerRead = await api(`/api/workspaces/${accountA.workspace.id}/posts`, accountA.token);
+    assert.equal(ownerRead.status, 200);
+    const ownerPosts = await ownerRead.json() as { posts: Array<{ id: number }> };
+    assert.equal(ownerPosts.posts.some(post => Number(post.id) === Number(postId)), true);
+  } finally {
+    const exited = new Promise<void>(resolve => server.once("exit", () => resolve()));
+    server.kill("SIGTERM");
+    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 2_000))]);
+    await pool!.query("DELETE FROM users WHERE email = ANY($1::text[])", [[emailA, emailB]]).catch(() => {});
+  }
+});
