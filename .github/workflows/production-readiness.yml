@@ -39,7 +39,7 @@ jobs:
             const metadata = report.metadata?.vulnerabilities || {};
             const items = Object.entries(report.vulnerabilities || {}).map(([name, item]) => ({
               name, severity: item.severity, range: item.range, fixAvailable: item.fixAvailable,
-              advisories: (item.via || []).filter(v => typeof v === "object").map(v => ({ title: v.title, url: v.url }))
+              advisories: (item.via || []).map(v => typeof v === "string" ? v : ({ title: v.title, url: v.url, range: v.range }))
             }));
             console.log(JSON.stringify({ audit: label, totals: metadata, packages: items }, null, 2));
           }
