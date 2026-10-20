@@ -54,7 +54,6 @@ test("HTTP API denies cross-workspace reads and writes", {
   timeout: 60_000
 }, async () => {
   const { spawn } = await import("node:child_process");
-  const { once } = await import("node:events");
   const suffix = randomUUID();
   const emailA = `tenant-a-${suffix}@example.test`;
   const emailB = `tenant-b-${suffix}@example.test`;
@@ -149,8 +148,9 @@ test("HTTP API denies cross-workspace reads and writes", {
     const ownerPosts = await ownerRead.json() as { posts: Array<{ id: number }> };
     assert.equal(ownerPosts.posts.some(post => Number(post.id) === Number(postId)), true);
   } finally {
+    const exited = new Promise<void>(resolve => server.once("exit", () => resolve()));
     server.kill("SIGTERM");
-    await Promise.race([once(server, "exit"), new Promise(resolve => setTimeout(resolve, 2_000))]);
+    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 2_000))]);
     await pool!.query("DELETE FROM users WHERE email = ANY($1::text[])", [[emailA, emailB]]).catch(() => {});
   }
 });
