@@ -53,7 +53,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 ### High — Release evidence is incomplete
 
-- GitHub Actions Production readiness run #32 (`39378899328`) passed dependency installation, the enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #145 (`39378899320`) passed `npm ci`, typecheck, `db:migrate`, tests with configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. Both workflows passed on the current code/workflow state before this report update.
+- GitHub Actions Production readiness run #38 (`39379180752`) passed dependency installation, the enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #151 (`39379180779`) passed `npm ci`, typecheck, `db:migrate`, tests with configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. Both workflows passed after the authentication rate-limit changes and before this report update.
 - A committed `package-lock.json` (lockfile v3) is now present. Both CI workflows use `npm ci`; the current Node.js checks passed `npm ci` on the committed lockfile.
 - A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current enforced CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The resolved lockfile is committed and `npm ci` has passed. Android build has not been verified here.
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
@@ -68,6 +68,16 @@ This report records evidence gathered during source review and distinguishes cod
 **Change on audit branch:** Both code paths now require canonical base64 encoding of an exact 32-byte key, validate the AES-GCM IV/tag/ciphertext encodings and lengths, require exactly four envelope fields, and validate decrypted token bundle shapes. Added regression tests for non-canonical keys and malformed token envelopes.
 
 **Verification:** After correcting the test fixture, the current CI runs passed the complete automated test suite and production build (run #27) plus the database-migration, integration-enabled test, build and server syntax/import checks (run #140).
+
+### Medium — App Router login and registration actions lacked shared rate limiting
+
+**Affected path:** `app/actions/auth.ts` (Next.js server actions).
+
+**Evidence:** The legacy Express API has authentication rate limits, but the App Router login and registration server actions did not apply equivalent controls before database lookups and password hashing. Server actions can be invoked directly, so the UI alone is not a protective boundary.
+
+**Change on audit branch:** Added atomic Redis-backed sliding-window counters keyed by a SHA-256 digest of the normalized email and, when supplied by the reverse proxy, the client IP. Login is limited to 10 attempts per 15 minutes and registration to 8 attempts per hour for each dimension. The limiter fails closed in production if Redis is unavailable and returns a safe user-facing message. The reverse proxy must overwrite `X-Forwarded-For`; the implementation uses the last forwarded hop to reduce spoofing risk. Added unit tests for counter increments, dimensions and invalid configuration.
+
+**Verification:** The production-readiness and Node.js workflows passed typecheck, automated tests, and production build after this change. The Node.js workflow also has configured Redis/PostgreSQL services. A live multi-instance/proxy deployment test remains outstanding.
 
 ## Official SSLCOMMERZ documentation review
 
