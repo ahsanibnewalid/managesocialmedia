@@ -15,7 +15,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "worker:publish": "node --import tsx server/publishing-worker.js",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:rollback": "tsx scripts/migrate.ts --down"
   },
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.9",
