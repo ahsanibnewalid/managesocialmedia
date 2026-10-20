@@ -8,8 +8,13 @@ type PublishResult = { externalPostId: string; platform: Platform; refreshedEncr
 function encryptionKey(): Buffer {
   const raw = process.env.SOCIAL_TOKEN_ENCRYPTION_KEY;
   if (!raw) throw new Error("SOCIAL_TOKEN_ENCRYPTION_KEY is not configured");
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw)) {
+    throw new Error("SOCIAL_TOKEN_ENCRYPTION_KEY must be canonical base64 for a 32-byte key");
+  }
   const key = Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("SOCIAL_TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key");
+  if (key.length !== 32 || key.toString("base64") !== raw) {
+    throw new Error("SOCIAL_TOKEN_ENCRYPTION_KEY must be canonical base64 for a 32-byte key");
+  }
   return key;
 }
 function encryptToken(token: TokenBundle): string {
@@ -20,14 +25,28 @@ function encryptToken(token: TokenBundle): string {
 }
 /** Token ciphertext format: v1:<base64 iv>:<base64 auth tag>:<base64 ciphertext>. */
 function decryptToken(ciphertext: string): TokenBundle {
-  const [version, ivText, tagText, dataText] = ciphertext.split(":");
-  if (version !== "v1" || !ivText || !tagText || !dataText) throw new Error("Unsupported encrypted token format");
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivText, "base64"));
-  decipher.setAuthTag(Buffer.from(tagText, "base64"));
-  const plaintext = Buffer.concat([decipher.update(Buffer.from(dataText, "base64")), decipher.final()]).toString("utf8");
-  const parsed = JSON.parse(plaintext) as TokenBundle;
-  if (!parsed.accessToken) throw new Error("Encrypted token bundle is missing accessToken");
-  return parsed;
+  const parts = ciphertext.split(":");
+  if (parts.length !== 4 || parts[0] !== "v1") throw new Error("Unsupported encrypted token format");
+  const [, ivText, tagText, dataText] = parts;
+  const iv = Buffer.from(ivText, "base64");
+  const tag = Buffer.from(tagText, "base64");
+  const data = Buffer.from(dataText, "base64");
+  if (iv.length !== 12 || tag.length !== 16 || data.length === 0 ||
+      iv.toString("base64") !== ivText || tag.toString("base64") !== tagText || data.toString("base64") !== dataText) {
+    throw new Error("Malformed encrypted token");
+  }
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), iv);
+  decipher.setAuthTag(tag);
+  const plaintext = Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  const parsed: unknown = JSON.parse(plaintext);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Encrypted token bundle is malformed");
+  const token = parsed as Partial<TokenBundle>;
+  if (typeof token.accessToken !== "string" || !token.accessToken ||
+      (token.refreshToken !== undefined && typeof token.refreshToken !== "string") ||
+      (token.expiresAt !== undefined && (typeof token.expiresAt !== "number" || !Number.isFinite(token.expiresAt)))) {
+    throw new Error("Encrypted token bundle is malformed");
+  }
+  return token as TokenBundle;
 }
 async function providerFetch(url: string, init: RequestInit) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000), cache: "no-store" });
