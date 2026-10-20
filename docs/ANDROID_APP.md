@@ -4,7 +4,18 @@ Tidepost Android is a native Kotlin + Jetpack Compose companion app for the exis
 
 ## Current state
 
-This first increment establishes the Android project, a responsive dark dashboard shell, bottom navigation, a server URL format screen, and a GitHub Actions workflow that builds and uploads a **debug APK**. Dashboard counts intentionally show placeholders: the app is not yet connected to the production API. Calendar, composer, and analytics screens are explanatory placeholders, not working publishing features.
+This first increment establishes the Android project, a responsive dark dashboard shell, bottom navigation, a server URL format screen, and a GitHub Actions workflow that builds and uploads a **debug APK**. It also adds beginner-focused guidance and a local draft preview. Dashboard counts intentionally show placeholders: the app is not yet connected to the production API. Calendar and analytics explain what will appear after integration; the composer can preview a draft locally but cannot publish it yet.
+
+## Beginner-first features added
+
+- **Start here checklist:** explains the first setup steps without assuming technical knowledge.
+- **Plain-language labels:** explains what scheduled, published, and attention-needed statuses mean.
+- **Draft writing and preview:** write a caption, see its character count, and preview it without accidentally publishing.
+- **Pre-publish checklist:** reminds users to check account selection, media requirements, timing, and time zone.
+- **Honest empty states:** does not pretend missing server data is zero or fabricate analytics.
+- **Safety tips:** warns users not to share passwords, one-time codes, or access tokens.
+- **HTTPS address check:** catches common URL-format mistakes; this is a format check only, not a live connectivity test.
+- **Clear limitations:** pages explain which functions are waiting for server integration.
 
 ## Build the APK
 
