@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { decryptBillingCredentials, encryptBillingCredentials, maskSecret } from "@/lib/billing-credentials";
+import { hasTrustedRequestOrigin } from "@/lib/request-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,11 +30,18 @@ export async function PUT(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   if (!ownerAllowed(user.email)) return NextResponse.json({ error: "Platform owner access required" }, { status: 403 });
+  if (!hasTrustedRequestOrigin(request)) {
+    return NextResponse.json({ error: "Request origin is not trusted" }, { status: 403 });
+  }
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid provider settings", details: parsed.error.flatten() }, { status: 400 });
   const {provider,enabled,mode,credentials} = parsed.data;
   if (provider === "international" && enabled) {
     return NextResponse.json({ error: "International checkout is not implemented yet. Save it disabled until an eligible provider adapter is added and tested." }, { status: 400 });
+  }
+  const allowedCredentialKeys = provider === "sslcommerz" ? new Set(["storeId", "storePassword"]) : new Set<string>();
+  if (Object.keys(credentials).some(key => !allowedCredentialKeys.has(key))) {
+    return NextResponse.json({ error: "Unsupported credential field for this provider" }, { status: 400 });
   }
   const existing = await db.query("SELECT credential_ciphertext,credential_iv,credential_tag FROM billing_provider_settings WHERE scope_type='platform' AND scope_id=0 AND provider=$1",[provider]);
   let merged:Record<string,string> = {};
