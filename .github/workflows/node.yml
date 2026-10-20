@@ -59,11 +59,18 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          gh api --method PUT "repos/${REPOSITORY}/contents/package-lock.json" \
-            --field message="build(deps): lock Express server dependencies" \
-            --field branch="${TARGET_BRANCH}" \
-            --field sha="$(gh api "repos/${REPOSITORY}/contents/package-lock.json?ref=${TARGET_BRANCH}" --jq .sha)" \
-            --field content="$(base64 -w0 package-lock.json)"
+          export LOCK_SHA="$(gh api "repos/${REPOSITORY}/contents/package-lock.json?ref=${TARGET_BRANCH}" --jq .sha)"
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const payload = {
+            message: "build(deps): lock Express server dependencies",
+            branch: process.env.TARGET_BRANCH,
+            sha: process.env.LOCK_SHA,
+            content: fs.readFileSync("package-lock.json", "base64")
+          };
+          fs.writeFileSync("/tmp/package-lock-payload.json", JSON.stringify(payload));
+          NODE
+          gh api --method PUT "repos/${REPOSITORY}/contents/package-lock.json" --input /tmp/package-lock-payload.json
           npm ci
       - run: npm run typecheck
       - run: npm run db:migrate
