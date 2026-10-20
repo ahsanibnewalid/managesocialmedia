@@ -1,20 +1,11 @@
-CREATE TABLE IF NOT EXISTS audit_log (
- id BIGSERIAL PRIMARY KEY,
- occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
- actor_ip INET,
- workspace_id BIGINT REFERENCES workspaces(id) ON DELETE CASCADE,
- action TEXT NOT NULL,
- target_type TEXT,
- target_id TEXT,
- metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
- user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
- created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
+-- The core schema already owns audit_log. This migration is additive only so
+-- existing audit rows and the established audit_log(user_id, workspace_id, ...)
+-- write format remain intact.
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_user_id BIGINT;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_ip INET;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS workspace_id BIGINT;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS action TEXT;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_type TEXT;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS target_id TEXT;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS metadata JSONB;
@@ -37,7 +28,9 @@ ALTER TABLE audit_log ALTER COLUMN metadata SET NOT NULL;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_log_actor_user_id_fkey') THEN
-    ALTER TABLE audit_log ADD CONSTRAINT audit_log_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE audit_log
+      ADD CONSTRAINT audit_log_actor_user_id_fkey
+      FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
 
