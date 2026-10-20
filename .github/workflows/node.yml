@@ -62,7 +62,7 @@ jobs:
           gh api --method PUT "repos/${REPOSITORY}/contents/package-lock.json" \
             --field message="build(deps): lock Express server dependencies" \
             --field branch="${TARGET_BRANCH}" \
-            --field sha="$(git ls-tree origin/${TARGET_BRANCH} package-lock.json | awk '{print $3}')" \
+            --field sha="$(gh api "repos/${REPOSITORY}/contents/package-lock.json?ref=${TARGET_BRANCH}" --jq .sha)" \
             --field content="$(base64 -w0 package-lock.json)"
           npm ci
       - run: npm run typecheck
