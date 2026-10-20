@@ -2,22 +2,43 @@
 
 Tidepost is a multi-workspace social-media management console built with Next.js App Router, TypeScript, PostgreSQL, Redis and BullMQ. The web application and scheduled publishing worker run as separate processes. The legacy Express API remains available for migration compatibility.
 
-> **Release status:** Not yet verified as production-ready. The core app and provider adapters are implemented, but live provider flows require authorized developer apps and test accounts. LinkedIn analytics is not implemented, and provider-side exactly-once publishing cannot be guaranteed where idempotency is unavailable. See the [Production Readiness Runbook](docs/PRODUCTION_READINESS.md) for release gates.
+> **Release status:** Not yet verified as production-ready. The core app and provider adapters are implemented, but live provider flows require authorized developer apps and test accounts. LinkedIn analytics is not implemented, and provider-side exactly-once publishing cannot be guaranteed where idempotency is unavailable. See the [Production Certification](docs/PRODUCTION_CERTIFICATION.md) and [Production Readiness Runbook](docs/PRODUCTION_READINESS.md) for release gates.
 
 ## Visual tour
 
-The images below are **illustrative UI concepts**, not screenshots captured from a running deployment. They help beginners understand the main ideas; actual screens and available data can vary by build and configuration.
+The diagrams in this section are **documentation visuals**, not captured screenshots. They describe the current intended architecture and workflows without pretending that unverified production screens exist.
 
-| Dashboard overview | Planning calendar |
-|---|---|
-| ![Illustrative Tidepost dashboard preview](docs/images/dashboard-preview.svg) | ![Illustrative content calendar preview](docs/images/calendar-preview.svg) |
+### Product at a glance
 
-| Analytics overview | Beginner setup roadmap |
-|---|---|
-| ![Illustrative analytics preview; sample values only](docs/images/analytics-preview.svg) | ![Beginner setup steps](docs/images/setup-steps.svg) |
+![Tidepost dashboard concept](docs/images/dashboard-preview.svg)
 
-For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md). For the intended agency subscription business model, owner controls, tenant-isolation requirements, and staged SaaS launch gates, see the [Agency SaaS Roadmap](docs/AGENCY_SAAS_ROADMAP.md).
+### System architecture
 
+![Tidepost architecture](docs/images/architecture-overview.svg)
+
+The browser talks to the Next.js application. PostgreSQL stores users, workspaces, posts, audit and billing data. Redis/BullMQ handles scheduled work, and the separate publishing worker executes provider adapters.
+
+### Publishing flow
+
+![Publishing and retry flow](docs/images/publishing-flow.svg)
+
+Publishing is intentionally asynchronous: authorization and validation happen before queueing, the worker executes provider adapters, and transient failures are retried. A provider can accept a post immediately before a worker crash, so the application does not claim universal exactly-once delivery.
+
+### Production certification
+
+![Production certification gates](docs/images/production-gates.svg)
+
+A green build is only one gate. Production approval requires evidence for security, tenant isolation, recovery, payments, provider integrations and operations. See [Production Certification](docs/PRODUCTION_CERTIFICATION.md).
+
+### More visual guides
+
+- [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md) — step-by-step product concepts.
+- [Architecture Overview](docs/images/architecture-overview.svg) — high-level system map.
+- [Publishing Flow](docs/images/publishing-flow.svg) — queue, worker, provider and retry lifecycle.
+- [Production Certification](docs/PRODUCTION_CERTIFICATION.md) — release gates and evidence requirements.
+- [Agency SaaS Roadmap](docs/AGENCY_SAAS_ROADMAP.md) — intended subscription business model and staged rollout.
+
+> **Screenshots and videos:** When a verified staging/demo recording is available, add it under `docs/media/` and link it from this section. Do not use fabricated screenshots or claim that an illustrative diagram is a live product capture.
 
 ## Android app
 
@@ -25,7 +46,7 @@ A native Kotlin + Jetpack Compose Android companion app lives in [`android-app/`
 
 ## Current audit status
 
-The evidence-based audit is tracked in the [Full Production Readiness Audit](docs/AUDIT_REPORT.md). The audit branch contains targeted hardening for cookie-authenticated billing settings mutations and strict billing credential encryption validation. These changes are awaiting automated CI execution; the overall application remains **not production-ready** until the documented release gates pass.
+The evidence-based audit is tracked in the [Full Production Readiness Audit](docs/AUDIT_REPORT.md). Targeted hardening includes cookie-authenticated billing settings protection, strict billing credential encryption validation, safe integer workspace identifiers, concurrent migration protection, and repeatable migration checks. The overall application remains **not production-ready** until the documented release gates pass.
 
 ## SaaS ownership and billing roadmap
 
@@ -49,35 +70,27 @@ The `feat/dashboard-managed-billing` branch adds API foundations for platform-ow
 1. Create a PostgreSQL database and a Redis instance.
 2. Copy `.env.example` to `.env`.
 3. Set at minimum:
-
    - `APP_URL`: app base URL; must exactly match the OAuth redirect URI registered with each provider.
    - `DATABASE_URL`: PostgreSQL connection string.
    - `REDIS_URL`: Redis connection string.
    - `JWT_SECRET`: random secret with at least 32 characters.
    - `SOCIAL_TOKEN_ENCRYPTION_KEY`: base64-encoded 32-byte key.
 4. Generate the encryption key:
-
    ```bash
    openssl rand -base64 32
    ```
-
    Store it in your secret manager. **Do not lose or casually rotate this key**: existing social-account tokens cannot be decrypted without it.
 5. Install dependencies and apply the idempotent initial schema:
-
    ```bash
    npm ci
    npm run db:migrate
    ```
-
 6. Run the web app:
-
    ```bash
    npm run dev
    ```
-
 7. Open `http://localhost:3000`, register, and sign in. Workspace owners/admins can start account linking from the Connected Accounts panel.
 8. In another terminal, run the publishing worker:
-
    ```bash
    npm run worker:publish
    ```
@@ -113,43 +126,21 @@ Configure provider credentials in the deployment secret manager and in local `.e
 
 The callback URL is `{APP_URL}/api/social/callback`. Register that exact URL with each provider. The UI starts linking with a same-origin `POST` to `/api/social/{platform}/connect` containing `workspaceId`; the route verifies the `Origin` header and workspace owner/admin permission before redirecting to the provider.
 
-OAuth state values are random, stored as hashes, expire after ten minutes, and are consumed once. X and TikTok authorization use PKCE. Provider tokens are encrypted with AES-256-GCM before persistence in `social_accounts.token_ciphertext`. The ciphertext format is:
-
-```text
-v1:<base64-iv>:<base64-auth-tag>:<base64-ciphertext>
-```
-
-Token refresh is attempted for providers that return a refresh token and have a configured refresh endpoint (LinkedIn, X, TikTok). A rotated token is persisted before the publish request. Meta token lifecycle differs by app type and is not guessed: when a Meta token expires, reconnect the account using the approved Meta flow. Authorization failures mark the account as requiring reconnection. Disconnect disables local publishing and attempts provider revocation where supported; provider revocation is best-effort and must be confirmed in each provider's app/security settings when required.
+OAuth state values are random, stored as hashes, expire after ten minutes, and are consumed once. X and TikTok authorization use PKCE. Provider tokens are encrypted with AES-256-GCM before persistence in `social_accounts.token_ciphertext`. Token refresh is attempted for providers that return a refresh token and have a configured refresh endpoint. Meta token lifecycle differs by app type and is not guessed: when a Meta token expires, reconnect the account using the approved Meta flow.
 
 ## Publishing and retry behavior
 
 - Facebook: Page text posts via the Graph API.
-- Instagram: image posts using the media-container then publish flow. The image URL must be publicly accessible over HTTPS.
+- Instagram: image posts using the media-container then publish flow.
 - LinkedIn: text posts via the Posts API, subject to API version and app permissions.
 - X: text posts via API v2.
-- TikTok: video posts using TikTok's URL-pull publishing flow. Provide a publicly accessible HTTPS **video** URL whose domain/URL prefix is verified as required in the TikTok developer app. The app must have approved Content Posting API access. Multipart upload, photo posts, and other TikTok formats are not implemented.
+- TikTok: video posts using TikTok's URL-pull publishing flow.
 
-The composer uses one media URL field: an image for Instagram, a video for TikTok. Avoid selecting incompatible media platforms together. Provider API schemas and available scopes change; check each provider's current official documentation before enabling an account.
-
-BullMQ retries transient job failures with backoff. Successful platform attempts are recorded and skipped on subsequent retries, so a platform already recorded as successful is not deliberately sent again. There is an unavoidable uncertainty window if a provider accepts a post but the worker crashes before persisting the provider response; not every provider offers an idempotency key, so exactly-once publishing cannot be guaranteed. Monitor failed attempts and reconcile uncertain publishes against the provider's account.
+BullMQ retries transient job failures with backoff. Successful platform attempts are recorded and skipped on subsequent retries. There is an unavoidable uncertainty window if a provider accepts a post but the worker crashes before persisting the provider response; not every provider offers an idempotency key, so exactly-once publishing cannot be guaranteed.
 
 ## Analytics ingestion
 
-Actual metrics are stored in `post_analytics` and the dashboard shows reach only when synced values exist. The sync endpoint is:
-
-```http
-POST /api/cron/analytics
-Authorization: Bearer <CRON_SECRET>
-```
-
-Set `CRON_SECRET` to a random secret of at least 32 characters, and call this endpoint from a trusted scheduler (for example, a secured cron job) on a sensible interval. Never call it from browser code or expose the secret to users. The endpoint reports counts of synced, skipped, and failed records.
-
-- Facebook and Instagram: Graph API insights are requested using the configured Meta Graph API version. Available metrics depend on object type, permissions, and current API support.
-- X: public engagement metrics are ingested; impressions are not claimed without the appropriate API access.
-- TikTok: video view/like/comment/share metrics are queried where the connected account and scopes permit it.
-- LinkedIn: analytics ingestion is not implemented because the required organization/member analytics access and object mapping are not yet verified. No synthetic reach is shown.
-
-Provider APIs can rate-limit or remove metrics; the latest saved values are not a guarantee of real-time analytics.
+Actual metrics are stored in `post_analytics` and the dashboard shows reach only when synced values exist. The sync endpoint is `POST /api/cron/analytics` with a trusted `CRON_SECRET`. LinkedIn analytics ingestion is not implemented because the required access and object mapping are not yet verified. No synthetic reach is shown.
 
 ## Tests and verification
 
@@ -161,32 +152,26 @@ npm test
 npm run build
 ```
 
-Unit tests cover JWT issuer/expiry/signature validation and AES-256-GCM token encryption, round-trip decryption, tamper rejection, and invalid keys. The integration tests are **skipped unless their environment variables are supplied**:
-
-- Set `DATABASE_URL` to a disposable PostgreSQL database that has had `npm run db:migrate` applied to check schema and workspace-membership isolation.
-- Set `REDIS_URL` to a test Redis instance to verify connectivity.
-- Configure both to run the combined database/Redis availability check.
-
-GitHub Actions runs typecheck, tests, the production build, and syntax/runtime-loader checks. CI does not have provider credentials and therefore cannot validate live OAuth, live publishing, provider permissions, rate limits, or live analytics. Before launch, perform provider-specific smoke tests using accounts you own/control, then inspect the resulting posts in each provider UI.
+GitHub Actions runs typecheck, tests, the production build, migration checks, and syntax/runtime-loader checks. CI does not have provider credentials and therefore cannot validate live OAuth, live publishing, provider permissions, rate limits, live analytics, or payment-provider behavior. Before launch, perform provider-specific smoke tests using accounts you own/control.
 
 ## Production deployment checklist
 
 1. Deploy PostgreSQL with TLS, backups, restricted network access, and a tested restore procedure.
 2. Deploy Redis with authentication/TLS where supported and persistence appropriate to your queue-recovery requirements.
-3. Set `APP_URL`, `DATABASE_URL`, `DATABASE_SSL`, `REDIS_URL`, `JWT_SECRET`, `SOCIAL_TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, and provider secrets in the secret manager.
-4. Register the exact HTTPS OAuth callback URL with every provider; request only scopes your app has been approved to use.
+3. Set application and provider secrets in the secret manager; never commit them.
+4. Register the exact HTTPS OAuth callback URL with every provider.
 5. Run `npm run db:migrate` as a controlled release step after taking a backup.
 6. Build and run the web app with `npm run build && npm start`; run `npm run worker:publish` as a separate managed process.
-7. Schedule authenticated analytics sync and monitor its result codes, worker failures, provider rate limits, and token-expiry/reconnect states.
-8. Add persistent rate limiting to registration/login/OAuth-start endpoints, security headers, audit-log retention rules, alerting, backup/restore drills, versioned migrations, and deployment rollback before production use.
-9. Run authorized live OAuth/publish/revoke/refresh tests for each provider and review all requested app scopes and API versions. Do not enable a platform solely because the TypeScript build passes.
+7. Schedule authenticated analytics sync and monitor worker failures, provider rate limits, and token-expiry states.
+8. Add persistent rate limiting, security headers, audit-log retention rules, alerting, backup/restore drills and rollback before production use.
+9. Run authorized live OAuth/publish/revoke/refresh tests for each provider. Do not enable a platform solely because the TypeScript build passes.
 
 ## Troubleshooting
 
-- **OAuth redirects with an error:** confirm the provider client ID/secret, exact `APP_URL` callback URL, app mode/approval, account role, and requested scopes. Check server logs; user-facing callbacks intentionally avoid exposing secrets or provider error payloads.
-- **Facebook/Instagram shows no account:** link an Instagram professional account to a Facebook Page, grant the app access to that Page, and ensure the selected account is visible to the authorizing user.
-- **Account shows error / reconnect needed:** the provider rejected an API call or credentials expired. Use Connect again; for Meta, follow the provider's approved token lifecycle.
-- **TikTok publish fails:** verify Content Posting API approval, `video.publish` scope, video URL reachability, verified URL/domain ownership, supported video format, and the app's privacy/visibility settings.
-- **Scheduled post stays queued:** verify PostgreSQL and Redis connectivity, ensure `npm run worker:publish` is running, and inspect BullMQ worker logs plus `publish_attempts`.
-- **Reach shows a dash:** no supported metrics have been synced yet. Configure `CRON_SECRET`, call the analytics endpoint from a trusted scheduler, and verify the provider has granted insights scopes.
-- **Token decryption fails:** ensure every web/worker instance uses the same base64 32-byte `SOCIAL_TOKEN_ENCRYPTION_KEY`. Do not replace the key without a planned token rotation/re-encryption process.
+- **OAuth redirects with an error:** confirm provider credentials, exact `APP_URL`, app mode/approval, account role and scopes.
+- **Facebook/Instagram shows no account:** link an Instagram professional account to a Facebook Page and grant the app access.
+- **Account requires reconnect:** provider rejected an API call or credentials expired.
+- **TikTok publish fails:** verify Content Posting API approval, scopes, video URL reachability and supported format.
+- **Scheduled post stays queued:** verify PostgreSQL/Redis connectivity, ensure the worker is running, and inspect queue logs.
+- **Reach shows a dash:** no supported metrics have been synced yet.
+- **Token decryption fails:** ensure every web/worker instance uses the same encryption key.
