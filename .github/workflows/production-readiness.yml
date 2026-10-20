@@ -42,6 +42,7 @@ jobs:
               advisories: (item.via || []).map(v => typeof v === "string" ? v : ({ title: v.title, url: v.url, range: v.range }))
             }));
             console.log(JSON.stringify({ audit: label, totals: metadata, packages: items }, null, 2));
+            if (Number(metadata.total || 0) > 0) process.exitCode = 1;
           }
           NODE
       - name: TypeScript typecheck
