@@ -3,7 +3,6 @@ package com.tidepost.mobile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun TidepostApp() {
-    var selected by remember { mutableIntStateOf(0) }
+    var selected by rememberSaveable { mutableIntStateOf(0) }
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Mint, background = Ink, surface = Panel,
         onPrimary = Ink, onBackground = Color.White, onSurface = Color.White
@@ -102,9 +103,9 @@ private fun TidepostApp() {
                 }
                 when (selected) {
                     0 -> Dashboard()
-                    1 -> SimplePage("Content calendar", "Your scheduled posts will appear here once connected to your Tidepost server.")
-                    2 -> SimplePage("Create a post", "The post composer will connect to the existing publishing API in the next integration step.")
-                    3 -> SimplePage("Analytics", "Real analytics will load from your workspace after secure API integration.")
+                    1 -> CalendarPage()
+                    2 -> ComposerPage()
+                    3 -> AnalyticsPage()
                     else -> SettingsPage()
                 }
                 Spacer(Modifier.height(8.dp))
@@ -115,28 +116,44 @@ private fun TidepostApp() {
 
 @Composable
 private fun Dashboard() {
-    Text("Good to see you", color = Muted, fontSize = 14.sp)
+    Text("Welcome to Tidepost 👋", color = Muted, fontSize = 14.sp)
     Text("Your workspace at a glance", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricCard("Scheduled", "—", "Waiting for server", Modifier.weight(1f))
-        MetricCard("Published", "—", "Waiting for server", Modifier.weight(1f))
+        MetricCard("Scheduled", "—", "Connect server first", Modifier.weight(1f))
+        MetricCard("Published", "—", "Real data only", Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricCard("Accounts", "—", "Not connected", Modifier.weight(1f))
-        MetricCard("Needs attention", "—", "No live data yet", Modifier.weight(1f))
+        MetricCard("Accounts", "—", "Not connected yet", Modifier.weight(1f))
+        MetricCard("Needs attention", "—", "Status unavailable", Modifier.weight(1f))
     }
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Connect your Tidepost workspace", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("This Android starter is ready for API integration. No sample numbers are presented as real account data.", color = Muted, fontSize = 14.sp)
-            Text("Next: configure your HTTPS server URL, sign in securely, then load workspace data.", color = Mint, fontSize = 13.sp)
+            Text("Start here", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Follow these steps to get set up. Your progress is saved while this screen stays open; server sync will be added with account integration.", color = Muted, fontSize = 13.sp)
+            SetupStep("1", "Connect your server", "Enter your secure HTTPS website in Settings.")
+            SetupStep("2", "Sign in", "Use your Tidepost account; never share your password.")
+            SetupStep("3", "Connect a social account", "Follow the provider sign-in and permission screens.")
+            SetupStep("4", "Create your first post", "Preview the text and target accounts before publishing.")
         }
     }
-    Text("Quick access", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        QuickChip("Create post")
-        QuickChip("Calendar")
-        QuickChip("Reports")
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Beginner tip", color = Mint, fontWeight = FontWeight.Bold)
+            Text("If a social account says “Reconnect”, sign in again from Connected Accounts on the web console. Never paste an access token into chat or a support message.", color = Muted, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+private fun SetupStep(number: String, title: String, detail: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(color = Ink, shape = RoundedCornerShape(12.dp)) {
+            Text(number, Modifier.padding(horizontal = 13.dp, vertical = 9.dp), color = Mint, fontWeight = FontWeight.Bold)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(detail, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+        }
     }
 }
 
@@ -152,40 +169,107 @@ private fun MetricCard(title: String, value: String, note: String, modifier: Mod
 }
 
 @Composable
-private fun QuickChip(label: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-        Text(label, Modifier.padding(horizontal = 12.dp, vertical = 12.dp), fontSize = 12.sp)
+private fun CalendarPage() {
+    Text("Content calendar", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Your schedule, in one place", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("After you connect your server, this screen will show planned posts and their publishing status.", color = Muted, fontSize = 14.sp)
+            InfoLine("Scheduled", "Posts waiting for their planned time")
+            InfoLine("Published", "Posts confirmed as published by the server")
+            InfoLine("Needs attention", "Failed or uncertain posts to review")
+            Text("Time-zone tip: always check the displayed date and time before scheduling. Time-zone-aware scheduling will be connected to the server API.", color = Mint, fontSize = 13.sp)
+        }
     }
 }
 
 @Composable
-private fun SimplePage(title: String, description: String) {
-    Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+private fun ComposerPage() {
+    var caption by rememberSaveable { mutableStateOf("") }
+    var showPreview by rememberSaveable { mutableStateOf(false) }
+    Text("Create a post", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+    Text("Draft your message before connecting accounts.", color = Muted, fontSize = 14.sp)
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
-        Text(description, Modifier.padding(18.dp), color = Muted, fontSize = 15.sp, lineHeight = 23.sp)
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Caption", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            OutlinedTextField(
+                value = caption,
+                onValueChange = { caption = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("What would you like to share?") },
+                placeholder = { Text("Write a helpful update…") },
+                minLines = 5,
+                supportingText = { Text("${caption.length} characters · draft stays on this screen for now") }
+            )
+            Text("Before publishing", color = Mint, fontWeight = FontWeight.Bold)
+            Text("• Choose the correct social accounts\n• Check media and platform requirements\n• Review the final preview\n• Confirm the schedule and time zone", color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+            Button(onClick = { showPreview = true }, enabled = caption.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Preview draft")
+            }
+            if (showPreview) {
+                Surface(color = Ink, shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Draft preview", color = Mint, fontWeight = FontWeight.Bold)
+                        Text(caption, color = Color.White)
+                        Text("Not published. Account selection and server publishing are not connected yet.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsPage() {
+    Text("Analytics", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Understand what works", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Once connected, this page will show only metrics actually returned by your connected platforms.", color = Muted, fontSize = 14.sp)
+            InfoLine("Reach", "How many people saw your content, where supported")
+            InfoLine("Engagement", "Interactions such as likes or comments, where available")
+            InfoLine("Post performance", "Compare posts over a selected period")
+            Text("Some platforms do not provide every metric. Missing data will be labelled clearly instead of shown as zero.", color = Mint, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun InfoLine(title: String, detail: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold)
+        Text(detail, color = Muted, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun SettingsPage() {
-    var serverUrl by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("Server connection is not configured.") }
+    var serverUrl by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf("Not checked yet.") }
     Text("Settings", fontSize = 26.sp, fontWeight = FontWeight.Bold)
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Tidepost server", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Enter your deployed HTTPS URL. This starter does not save credentials or send data yet.", color = Muted, fontSize = 13.sp)
+            Text("Connect your Tidepost server", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Use the HTTPS address where your Tidepost website is deployed. Do not enter your social media password here.", color = Muted, fontSize = 13.sp)
             OutlinedTextField(
-                value = serverUrl, onValueChange = { serverUrl = it },
+                value = serverUrl, onValueChange = { serverUrl = it.trim() },
                 modifier = Modifier.fillMaxWidth(), label = { Text("https://your-tidepost-domain.com") },
                 singleLine = true
             )
             Button(onClick = {
-                message = if (serverUrl.startsWith("https://") && serverUrl.length > 8)
-                    "URL format looks valid. API connectivity still needs implementation and testing."
-                else "Use a valid HTTPS URL for secure connections."
-            }, modifier = Modifier.fillMaxWidth()) { Text("Check URL format") }
+                val valid = serverUrl.startsWith("https://") &&
+                    serverUrl.removePrefix("https://").let { it.isNotBlank() && !it.contains(" ") && !it.startsWith("/") }
+                message = if (valid) "URL format looks okay. This does not yet contact the server." else "Please enter a full HTTPS address, for example https://social.example.com"
+            }, modifier = Modifier.fillMaxWidth()) { Text("Check address") }
             Text(message, color = Mint, fontSize = 13.sp)
+            Text("Why HTTPS? It helps protect information while it travels between your phone and server.", color = Muted, fontSize = 12.sp)
+            Text("Connection test, sign-in, and securely saving this address are not implemented yet.", color = Muted, fontSize = 12.sp)
+        }
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Need help?", fontWeight = FontWeight.Bold)
+            Text("If something fails, note the screen and the exact error. Never send passwords, one-time codes, or access tokens to anyone helping you.", color = Muted, fontSize = 13.sp)
         }
     }
 }
