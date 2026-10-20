@@ -59,6 +59,16 @@ This report records evidence gathered during source review and distinguishes cod
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
 - No real or sandbox SSLCOMMERZ payment was attempted. International payments are not verified or enabled. No real social accounts or live posts were used.
 
+### Medium — Social-token encryption accepted non-canonical base64 and insufficiently validated envelopes
+
+**Affected paths:** `lib/social-token-vault.ts` and `lib/services/socialPublisher.ts`.
+
+**Evidence:** Both code paths decoded `SOCIAL_TOKEN_ENCRYPTION_KEY` using Node's permissive base64 decoder and checked only the decoded byte count. The publishing adapter also accepted loosely parsed envelope components and did not require exactly four ciphertext fields.
+
+**Change on audit branch:** Both code paths now require canonical base64 encoding of an exact 32-byte key, validate the AES-GCM IV/tag/ciphertext encodings and lengths, require exactly four envelope fields, and validate decrypted token bundle shapes. Added regression tests for non-canonical keys and malformed token envelopes.
+
+**Verification:** The first CI run after adding these regression tests exposed an incorrect test fixture (a 12-byte IV has no base64 padding to remove). The test was corrected to append an invalid padding character. CI on the corrected commit is pending; do not count this newest change as passing until both workflows finish.
+
 ## Official SSLCOMMERZ documentation review
 
 The current official SSLCOMMERZ developer documentation describes a hosted checkout session-creation step, an IPN listener, and server-to-server Order Validation API verification. It instructs merchants to match the provider transaction ID, expected amount, and currency before updating local order state; the documentation also says transactions flagged with `risk_level = 1` should be held for customer verification. The validation endpoint differs between sandbox and live environments.
