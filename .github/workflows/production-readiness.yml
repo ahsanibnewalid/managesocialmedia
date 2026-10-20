@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Dependency audit summary
         run: |
           npm audit --json > /tmp/npm-audit-full.json || true
