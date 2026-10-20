@@ -11,7 +11,7 @@ This report records evidence gathered during source review and distinguishes cod
 ## Baseline inventory
 
 - Next.js App Router and TypeScript web app.
-- PostgreSQL schema bootstrap through `npm run db:migrate`; the current script applies `db/schema.sql` as one SQL batch and is not a versioned migration framework.
+- At baseline, `npm run db:migrate` applied `db/schema.sql` as one unversioned batch. The audit branch now adds numbered SQL migrations with checksums, per-migration transactions, a PostgreSQL advisory lock, and repeatability checks.
 - Redis/BullMQ scheduled publishing worker.
 - Legacy Express API entry point.
 - Provider adapters for Facebook Pages, Instagram image posts, LinkedIn text posts, X text posts, and TikTok video posts, subject to provider permissions and account eligibility.
@@ -53,7 +53,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 ### High — Release evidence is incomplete
 
-- GitHub Actions Production readiness run #50 (`39380127803`) passed dependency installation, enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #163 (`39380127742`) passed `npm ci`, typecheck, `db:migrate`, tests against configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. The HTTP tenant-isolation test passed as part of the Node.js test suite.
+- GitHub Actions Production readiness run #59 (`39380574235`) passed dependency installation, enforced full/production dependency audit, TypeScript typecheck, automated tests, and production build. Node.js checks run #172 (`39380574226`) passed `npm ci`, typecheck, `db:migrate` twice (repeatability), tests against configured PostgreSQL/Redis services, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. The HTTP tenant-isolation test passed as part of the Node.js test suite.
 - A committed `package-lock.json` (lockfile v3) is now present. Both CI workflows use `npm ci`; the current Node.js checks passed `npm ci` on the committed lockfile.
 - A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current enforced CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The resolved lockfile is committed and `npm ci` has passed. CI now tests actual cross-tenant HTTP reads and writes against a disposable PostgreSQL/Redis environment. Migration rollback/recovery, backup restore, and Android build have not been verified.
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
@@ -68,6 +68,16 @@ This report records evidence gathered during source review and distinguishes cod
 **Change on audit branch:** Both code paths now require canonical base64 encoding of an exact 32-byte key, validate the AES-GCM IV/tag/ciphertext encodings and lengths, require exactly four envelope fields, and validate decrypted token bundle shapes. Added regression tests for non-canonical keys and malformed token envelopes.
 
 **Verification:** After correcting the test fixture, the current CI runs passed the complete automated test suite and production build (run #27) plus the database-migration, integration-enabled test, build and server syntax/import checks (run #140).
+
+### High — Database changes were applied as an unversioned schema batch
+
+**Affected paths:** `scripts/migrate.js`, `db/schema.sql`, and database release procedure.
+
+**Evidence:** The baseline migration script applied the entire schema in one batch, without migration history, checksums, or protection against concurrent migration processes. This made schema-change review and repeatability difficult to prove.
+
+**Change on audit branch:** Added `db/migrations/001_initial_schema.sql` and a versioned migration runner that records filename/checksum/applied time, runs each migration in a transaction, uses a PostgreSQL advisory lock, skips previously applied migrations, and refuses to run if an applied migration's checksum changes. The legacy `db/schema.sql` is marked retired. CI now runs `npm run db:migrate` twice against disposable PostgreSQL to prove the second run skips the applied migration.
+
+**Verification:** Node.js checks run #172 passed both migration runs, the integration test suite, and build. Production-readiness run #59 passed typecheck, tests, dependency audit and build. Production migration rehearsal, rollback testing, and backup restore are still outstanding.
 
 ### High — The legacy API applied schema DDL on every startup
 
@@ -111,7 +121,7 @@ This audit did not implement or execute a payment lifecycle. Dashboard credentia
 
 ## Remaining audit gates
 
-1. Verify lockfile state and reproducible installation; CI typecheck, tests, build, and server syntax/import checks pass on the current branch head, but dependency audits and `npm ci` remain outstanding.
+1. Current CI passes committed-lockfile `npm ci`, typecheck, tests, build, server syntax/import checks and dependency audits on the verified code commit. Test migration rollback/recovery and restore from backup before release.
 2. Run the schema bootstrap and integration tests only against a disposable PostgreSQL database; assess repeatability and failure recovery.
 3. Audit every API route/server action and worker for tenant-scoped authorization, role checks, session behavior, CSRF, rate limiting, upload safety, and privileged owner access.
 4. Add automated cross-tenant and insufficient-role regression tests.
