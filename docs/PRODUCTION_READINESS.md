@@ -15,7 +15,8 @@ Do not label a release production-ready until each required item has evidence re
 - [ ] Use a high-entropy `JWT_SECRET` (32+ characters minimum; prefer 32 random bytes), and a separately generated base64 32-byte `SOCIAL_TOKEN_ENCRYPTION_KEY`.
 - [ ] PostgreSQL backups are enabled, encrypted, and restore-tested. Use TLS verification for managed database connections.
 - [ ] Redis is private, authenticated, persistent as appropriate, and reachable only by the app/worker.
-- [ ] Run schema migrations as a controlled release step, not concurrently from every application instance.
+- [x] Versioned schema migrations run as a controlled release step with a PostgreSQL advisory lock; API startup only verifies required tables and does not apply DDL.
+- [ ] Test a production-like migration rehearsal, rollback/recovery procedure, and restore from a verified backup before release.
 - [ ] Deploy the web app and publishing worker as separate processes; verify worker restarts, graceful shutdown, queue retry/backoff, and alerts.
 - [ ] Configure HTTPS, security headers, rate limits, request-size limits, secure cookies, trusted-proxy settings, and a restrictive CORS policy where applicable. The reverse proxy must overwrite `X-Forwarded-For` for the Redis-backed auth limiter; expand rate-limit coverage to other sensitive routes.
 - [ ] Verify workspace isolation and role-based authorization on every post, account, analytics, and publishing-attempt operation.
