@@ -43,7 +43,14 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run db:migrate
+      - name: Verify concurrent migration safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run db:migrate & pid1=$!
+          npm run db:migrate & pid2=$!
+          wait "$pid1"
+          wait "$pid2"
       - name: Verify migrations are repeatable
         run: npm run db:migrate
       - run: npm test
