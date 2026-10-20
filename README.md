@@ -27,6 +27,10 @@ A native Kotlin + Jetpack Compose Android companion app is being developed in [`
 
 Tidepost is intended to be a subscription platform for agencies, creators, celebrities, individuals and businesses. The current billing schema and payment rollout gates are documented in the [SaaS Billing Implementation Guide](docs/SAAS_BILLING_IMPLEMENTATION.md). **Payment checkout and subscription enforcement are not yet implemented; do not accept live payments until the release gates pass.**
 
+## Payment credential settings foundation
+
+The `feat/dashboard-managed-billing` branch adds API foundations for platform-owner and organization-scoped gateway settings, with AES-256-GCM encryption at rest. See [Dashboard-managed payment credentials](docs/BILLING_CREDENTIALS_DASHBOARD.md). These endpoints do not yet provide a finished dashboard UI or payment checkout; do not accept live payments until the complete payment lifecycle is implemented and tested.
+
 ## Requirements
 
 - Node.js 22+
