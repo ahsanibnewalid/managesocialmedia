@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { encryptBillingCredentials } from "@/lib/billing-credentials";
+import { decryptBillingCredentials, encryptBillingCredentials } from "@/lib/billing-credentials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,8 +32,13 @@ export async function PUT(request: NextRequest) {
   const member = await db.query("SELECT role FROM saas_organization_members WHERE organization_id=$1 AND user_id=$2",[organizationId,user.id]);
   if (!["owner","admin","billing"].includes(member.rows[0]?.role)) return NextResponse.json({error:"Organization billing permission required"},{status:403});
   if (provider==="sslcommerz" && (!credentials.storeId || !credentials.storePassword)) return NextResponse.json({error:"SSLCOMMERZ Store ID and Store Password are required"},{status:400});
-  if (enabled && Object.keys(credentials).length===0) return NextResponse.json({error:"Credentials required before enabling provider"},{status:400});
-  const encrypted=encryptBillingCredentials(credentials);
+  if (provider==="international" && enabled) return NextResponse.json({error:"International checkout is not implemented yet. Keep this provider disabled until a supported adapter is added and tested."},{status:400});
+  const existing=await db.query("SELECT credential_ciphertext,credential_iv,credential_tag FROM billing_provider_settings WHERE scope_type='organization' AND scope_id=$1 AND provider=$2",[organizationId,provider]);
+  let merged:Record<string,string>={};
+  if(existing.rows[0]?.credential_ciphertext){try{merged=decryptBillingCredentials({ciphertext:existing.rows[0].credential_ciphertext,iv:existing.rows[0].credential_iv,tag:existing.rows[0].credential_tag});}catch{return NextResponse.json({error:"Existing credentials cannot be decrypted. Check BILLING_CREDENTIALS_ENCRYPTION_KEY before rotating secrets."},{status:500});}}
+  merged={...merged,...Object.fromEntries(Object.entries(credentials).filter(([,v])=>v.length>0))};
+  if(provider==="sslcommerz"&&(!merged.storeId||!merged.storePassword))return NextResponse.json({error:"SSLCOMMERZ Store ID and Store Password are required"},{status:400});
+  const encrypted=encryptBillingCredentials(merged);
   await db.query(
     `INSERT INTO billing_provider_settings(scope_type,scope_id,provider,enabled,mode,credential_ciphertext,credential_iv,credential_tag,updated_by,updated_at)
      VALUES('organization',$1,$2,$3,$4,$5,$6,$7,$8,now())
