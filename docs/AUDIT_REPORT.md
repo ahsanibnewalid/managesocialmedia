@@ -59,6 +59,16 @@ This report records evidence gathered during source review and distinguishes cod
 - No disposable PostgreSQL/Redis integration environment was available; no migration was run.
 - No real or sandbox SSLCOMMERZ payment was attempted. International payments are not verified or enabled. No real social accounts or live posts were used.
 
+## Official SSLCOMMERZ documentation review
+
+The current official SSLCOMMERZ developer documentation describes a hosted checkout session-creation step, an IPN listener, and server-to-server Order Validation API verification. It instructs merchants to match the provider transaction ID, expected amount, and currency before updating local order state; the documentation also says transactions flagged with `risk_level = 1` should be held for customer verification. The validation endpoint differs between sandbox and live environments.
+
+Official references:
+- [SSLCOMMERZ API v4 integration guide](https://developer.sslcommerz.com/doc/v4/index.html)
+- [SSLCOMMERZ developer integration overview](https://developer.sslcommerz.com/)
+
+This audit did not implement or execute a payment lifecycle. Dashboard credential storage is not checkout, and no sandbox transaction was run. A future implementation must use the official sandbox, validate callbacks server-to-server, compare transaction ID/amount/currency/status, handle risk flags, and make callbacks idempotent before granting entitlements.
+
 ## Remaining audit gates
 
 1. Verify lockfile state and reproducible installation; run typecheck, tests, build, and dependency audits on the exact branch head.
