@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { encryptBillingCredentials, maskSecret } from "@/lib/billing-credentials";
+import { decryptBillingCredentials, encryptBillingCredentials, maskSecret } from "@/lib/billing-credentials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,10 +35,18 @@ export async function PUT(request: NextRequest) {
   if (provider === "sslcommerz" && (!credentials.storeId || !credentials.storePassword)) {
     return NextResponse.json({ error: "SSLCOMMERZ Store ID and Store Password are required" }, { status: 400 });
   }
-  if (provider === "international" && Object.keys(credentials).length === 0 && enabled) {
-    return NextResponse.json({ error: "Enter the selected international provider credentials before enabling it" }, { status: 400 });
+  if (provider === "international" && enabled) {
+    return NextResponse.json({ error: "International checkout is not implemented yet. Save it disabled until an eligible provider adapter is added and tested." }, { status: 400 });
   }
-  const encrypted = encryptBillingCredentials(credentials);
+  const existing = await db.query("SELECT credential_ciphertext,credential_iv,credential_tag FROM billing_provider_settings WHERE scope_type='platform' AND scope_id=0 AND provider=$1",[provider]);
+  let merged:Record<string,string> = {};
+  if(existing.rows[0]?.credential_ciphertext) {
+    try { merged = decryptBillingCredentials({ciphertext:existing.rows[0].credential_ciphertext,iv:existing.rows[0].credential_iv,tag:existing.rows[0].credential_tag}); }
+    catch { return NextResponse.json({error:"Existing credentials cannot be decrypted. Check BILLING_CREDENTIALS_ENCRYPTION_KEY before rotating secrets."},{status:500}); }
+  }
+  merged = {...merged,...Object.fromEntries(Object.entries(credentials).filter(([,v])=>v.length>0))};
+  if (provider === "sslcommerz" && (!merged.storeId || !merged.storePassword)) return NextResponse.json({ error: "SSLCOMMERZ Store ID and Store Password are required" }, { status: 400 });
+  const encrypted = encryptBillingCredentials(merged);
   const client = await db.connect();
   try {
     await client.query("BEGIN");
