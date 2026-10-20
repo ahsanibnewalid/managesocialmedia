@@ -31,7 +31,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Change on audit branch:** Added `lib/trusted-origin.ts` and `lib/request-origin.ts`; both PUT handlers now reject requests unless their Origin matches the configured canonical `APP_URL` origin. The helper fails closed when Origin or APP_URL is absent or malformed. Added unit regression cases in `tests/trusted-origin.test.ts`.
 
-**Verification:** Source change and regression-test file are committed on the audit branch. The test suite has not yet been executed in this environment. CI must confirm the tests compile and pass.
+**Verification:** The regression test is committed on the audit branch. GitHub Actions run #15 (`39377201098`) on the current audit-branch head passed dependency installation, TypeScript typecheck, automated tests, and production build. This is CI evidence, not a live security test.
 
 ### Medium — Billing credential encryption-key parsing accepted non-canonical base64 input
 
@@ -41,7 +41,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Change on audit branch:** Require canonical base64 for exactly 32 bytes, validate AES-GCM IV and authentication-tag lengths, validate ciphertext encoding, and validate the decrypted credential object shape. Decryption still fails closed if authentication fails or the key is wrong.
 
-**Verification:** Code inspection only. Automated crypto tests and runtime execution remain outstanding.
+**Verification:** The current-head GitHub Actions run #15 completed the repository's automated test suite and production build successfully. This does not by itself prove all cryptographic edge cases or runtime behavior.
 
 ### Medium — Billing credential payload accepted arbitrary field names
 
@@ -49,14 +49,14 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Evidence:** The request schema accepted arbitrary string keys in the credentials object. The handlers now allow only the SSLCOMMERZ fields `storeId` and `storePassword`; unsupported fields are rejected. International checkout remains disabled.
 
-**Verification:** Source inspection only; route-level tests and live provider integration are not verified.
+**Verification:** Current-head automated tests and production build passed in GitHub Actions run #15. Dedicated route-level tests and live provider integration remain unverified.
 
 ### High — Release evidence is incomplete
 
-- The available GitHub combined-status lookup returned no status entries for the inspected baseline commit; no passing CI run is claimed.
-- A repository `package-lock.json` was not found through the repository file endpoint, while the requested reproducible-install command is `npm ci`. Confirm the current tree and add/commit a lockfile before relying on `npm ci`.
-- No local clone could be made in the execution environment because DNS resolution for `github.com` failed. Consequently, `npm ci`, typecheck, tests, production build, dependency audit, database migration, and Android build have not been executed here.
-- No disposable PostgreSQL/Redis integration environment was available; no migration was run.
+- GitHub Actions on the current audit-branch head passed: Production readiness checks run #15 (`39377201098`) completed dependency installation, TypeScript typecheck, automated tests, and production build successfully; Node.js checks run #128 (`39377201234`) passed typecheck, `db:migrate`, tests, build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge.
+- A repository `package-lock.json` was not found through the repository file endpoint, and CI currently uses `npm install`, not `npm ci`. Confirm lockfile state and add/commit a lockfile before relying on reproducible `npm ci` installs.
+- A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. Dependency audits and Android build have not been verified here.
+- CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
 - No real or sandbox SSLCOMMERZ payment was attempted. International payments are not verified or enabled. No real social accounts or live posts were used.
 
 ## Official SSLCOMMERZ documentation review
@@ -71,7 +71,7 @@ This audit did not implement or execute a payment lifecycle. Dashboard credentia
 
 ## Remaining audit gates
 
-1. Verify lockfile state and reproducible installation; run typecheck, tests, build, and dependency audits on the exact branch head.
+1. Verify lockfile state and reproducible installation; CI typecheck, tests, build, and server syntax/import checks pass on the current branch head, but dependency audits and `npm ci` remain outstanding.
 2. Run the schema bootstrap and integration tests only against a disposable PostgreSQL database; assess repeatability and failure recovery.
 3. Audit every API route/server action and worker for tenant-scoped authorization, role checks, session behavior, CSRF, rate limiting, upload safety, and privileged owner access.
 4. Add automated cross-tenant and insufficient-role regression tests.
