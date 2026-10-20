@@ -98,7 +98,7 @@ openssl rand -base64 32
 
 ```mermaid
 flowchart TD
-    A["1. Open a terminal in the project folder"] --> B["2. Run npm install"]
+    A["1. Open a terminal in the project folder"] --> B["2. Run npm ci"]
     B --> C["3. Run npm run db:migrate"]
     C --> D["4. Run npm run dev"]
     D --> E["5. Open http://localhost:3000"]
@@ -109,14 +109,14 @@ flowchart TD
 Run these commands one at a time:
 
 ```bash
-npm install
+npm ci
 npm run db:migrate
 npm run dev
 ```
 
 Then open **http://localhost:3000** in your browser.
 
-- `npm install` downloads the project's required packages.
+- `npm ci` downloads the project's required packages.
 - `npm run db:migrate` prepares the database tables.
 - `npm run dev` starts the website for local development.
 
