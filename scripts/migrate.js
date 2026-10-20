@@ -28,7 +28,7 @@ async function migrate() {
 
     const directory = path.join(__dirname, "..", "db", "migrations");
     const files = fs.readdirSync(directory)
-      .filter(file => /^\\d+_[a-z0-9_-]+\\.sql$/.test(file))
+      .filter(file => /^[0-9]+_[a-z0-9_-]+\.sql$/.test(file))
       .sort();
     if (!files.length) throw new Error("No versioned SQL migrations found in db/migrations");
 
