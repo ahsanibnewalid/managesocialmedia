@@ -53,9 +53,9 @@ This report records evidence gathered during source review and distinguishes cod
 
 ### High — Release evidence is incomplete
 
-- GitHub Actions on the current audit-branch head passed: Production readiness checks run #15 (`39377201098`) completed dependency installation, TypeScript typecheck, automated tests, and production build successfully; Node.js checks run #128 (`39377201234`) passed typecheck, `db:migrate`, tests, build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge.
+- GitHub Actions run #27 (`39378480296`) passed dependency installation, dependency audit, TypeScript typecheck, automated tests, and production build on the branch's Next.js/PostCSS remediation. Node.js checks run #140 (`39378480553`) passed dependency installation, typecheck, `db:migrate`, tests, production build, and syntax/import checks for the Express API, publishing queue/adapters/worker, and API bridge. These checks passed before the latest documentation-only update.
 - A repository `package-lock.json` was not found through the repository file endpoint, and CI currently uses `npm install`, not `npm ci`. Confirm lockfile state and add/commit a lockfile before relying on reproducible `npm ci` installs.
-- A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. A GitHub Actions dependency audit on the pre-fix tree found one moderate Next.js advisory and one high PostCSS advisory in the resolved dependency tree. The branch now raises Next.js to the patched 15.5.28 line and overrides PostCSS to the patched 8.5.23+ line; CI must confirm the resolved tree is clean. A committed lockfile and `npm ci` remain outstanding until the generated lockfile is captured and reviewed. Android build has not been verified here.
+- A local clone could not be made in the execution environment because DNS resolution for `github.com` failed. The checks above were executed by GitHub Actions, not locally in this environment. The first dependency audit found one moderate Next.js advisory and one high PostCSS advisory. After raising Next.js to `^15.5.28` and overriding PostCSS to `^8.5.23`, the current CI audit reported **zero vulnerabilities** in both the full and production dependency trees. The generated lockfile was exported as a short-lived CI artifact for inspection but is not yet committed; CI still uses `npm install`, so deterministic `npm ci` remains outstanding. Android build has not been verified here.
 - CI's `db:migrate` step passed, but no disposable PostgreSQL/Redis integration environment, migration rollback, restore drill, or production-data migration was independently verified.
 - No real or sandbox SSLCOMMERZ payment was attempted. International payments are not verified or enabled. No real social accounts or live posts were used.
 
@@ -67,7 +67,7 @@ This report records evidence gathered during source review and distinguishes cod
 
 **Change on audit branch:** Both code paths now require canonical base64 encoding of an exact 32-byte key, validate the AES-GCM IV/tag/ciphertext encodings and lengths, require exactly four envelope fields, and validate decrypted token bundle shapes. Added regression tests for non-canonical keys and malformed token envelopes.
 
-**Verification:** The first CI run after adding these regression tests exposed an incorrect test fixture (a 12-byte IV has no base64 padding to remove). The test was corrected to append an invalid padding character. CI on the corrected commit is pending; do not count this newest change as passing until both workflows finish.
+**Verification:** After correcting the test fixture, the current CI runs passed the complete automated test suite and production build (run #27) plus the database-migration, integration-enabled test, build and server syntax/import checks (run #140).
 
 ## Official SSLCOMMERZ documentation review
 
