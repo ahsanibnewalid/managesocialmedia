@@ -8,7 +8,7 @@ import { hasTrustedRequestOrigin } from "@/lib/request-origin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const schema = z.object({
-  organizationId: z.number().int().positive(),
+  organizationId: z.number().int().positive().refine(Number.isSafeInteger, "organizationId must be a safe integer"),
   provider: z.enum(["sslcommerz", "international"]),
   enabled: z.boolean(),
   mode: z.enum(["sandbox", "live"]).default("sandbox"),
