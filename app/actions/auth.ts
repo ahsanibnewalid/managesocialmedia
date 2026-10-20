@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { COOKIE_NAME } from "@/lib/auth";
+import { checkAuthRateLimit } from "@/lib/auth-rate-limit";
 
 const loginSchema = z.object({ email:z.string().trim().email().max(254), password:z.string().min(1).max(128) });
 const registerSchema = z.object({
@@ -16,6 +17,9 @@ const registerSchema = z.object({
 export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse({ email:formData.get("email"), password:formData.get("password") });
   if (!parsed.success) redirect("/login?error=invalid");
+  const rateLimit = await checkAuthRateLimit("login", parsed.data.email);
+  if (rateLimit === "limited") redirect("/login?error=rate-limit");
+  if (rateLimit === "unavailable") redirect("/login?error=unavailable");
   const result = await db.query("SELECT id,name,email,password_hash FROM users WHERE email=lower($1)", [parsed.data.email]);
   if (!result.rowCount || !(await bcrypt.compare(parsed.data.password, result.rows[0].password_hash))) redirect("/login?error=invalid");
   const secret = process.env.JWT_SECRET;
@@ -28,6 +32,9 @@ export async function register(formData: FormData) {
   const parsed = registerSchema.safeParse({ name:formData.get("name"), email:formData.get("email"), password:formData.get("password") });
   if (!parsed.success) redirect("/register?error=invalid");
   const {name,email,password} = parsed.data;
+  const rateLimit = await checkAuthRateLimit("register", email);
+  if (rateLimit === "limited") redirect("/register?error=rate-limit");
+  if (rateLimit === "unavailable") redirect("/register?error=unavailable");
   const client = await db.connect();
   try {
     await client.query("BEGIN");
