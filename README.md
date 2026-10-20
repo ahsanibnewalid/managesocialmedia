@@ -23,6 +23,10 @@ For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BE
 
 A native Kotlin + Jetpack Compose Android companion app is being developed in [`android-app/`](android-app/) with its current scope and build instructions in the [Android App Guide](docs/ANDROID_APP.md). The current increment is a UI/build scaffold; live login, workspace data, publishing, and analytics integration are not yet complete. GitHub Actions builds a test APK when Android app files change.
 
+## SaaS ownership and billing roadmap
+
+Tidepost is intended to be a subscription platform for agencies, creators, celebrities, individuals and businesses. The current billing schema and payment rollout gates are documented in the [SaaS Billing Implementation Guide](docs/SAAS_BILLING_IMPLEMENTATION.md). **Payment checkout and subscription enforcement are not yet implemented; do not accept live payments until the release gates pass.**
+
 ## Requirements
 
 - Node.js 22+
