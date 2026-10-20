@@ -32,9 +32,6 @@ export async function PUT(request: NextRequest) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid provider settings", details: parsed.error.flatten() }, { status: 400 });
   const {provider,enabled,mode,credentials} = parsed.data;
-  if (provider === "sslcommerz" && (!credentials.storeId || !credentials.storePassword)) {
-    return NextResponse.json({ error: "SSLCOMMERZ Store ID and Store Password are required" }, { status: 400 });
-  }
   if (provider === "international" && enabled) {
     return NextResponse.json({ error: "International checkout is not implemented yet. Save it disabled until an eligible provider adapter is added and tested." }, { status: 400 });
   }
