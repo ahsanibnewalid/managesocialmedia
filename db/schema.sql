@@ -144,3 +144,23 @@ CREATE TABLE IF NOT EXISTS platform_audit_log (
  metadata JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS platform_audit_log_created_idx ON platform_audit_log(created_at DESC);
+
+
+-- Gateway credentials are scoped and encrypted by the application using a deployment-only key.
+CREATE TABLE IF NOT EXISTS billing_provider_settings (
+ id BIGSERIAL PRIMARY KEY,
+ scope_type TEXT NOT NULL CHECK (scope_type IN ('platform','organization')),
+ scope_id BIGINT NOT NULL,
+ provider TEXT NOT NULL CHECK (provider IN ('sslcommerz','international')),
+ enabled BOOLEAN NOT NULL DEFAULT false,
+ mode TEXT NOT NULL DEFAULT 'sandbox' CHECK (mode IN ('sandbox','live')),
+ credential_ciphertext TEXT,
+ credential_iv TEXT,
+ credential_tag TEXT,
+ updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ CHECK ((scope_type='platform' AND scope_id=0) OR (scope_type='organization' AND scope_id>0)),
+ UNIQUE(scope_type,scope_id,provider)
+);
+CREATE INDEX IF NOT EXISTS billing_provider_settings_scope_idx ON billing_provider_settings(scope_type,scope_id);
