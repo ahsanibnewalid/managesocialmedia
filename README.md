@@ -65,7 +65,7 @@ The `feat/dashboard-managed-billing` branch adds API foundations for platform-ow
 5. Install dependencies and apply the idempotent initial schema:
 
    ```bash
-   npm install
+   npm ci
    npm run db:migrate
    ```
 
