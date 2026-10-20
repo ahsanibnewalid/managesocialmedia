@@ -5,7 +5,7 @@ import { getSessionUser, requireWorkspaceRole } from "@/lib/auth";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  workspaceId: z.coerce.number().int().positive(),
+  workspaceId: z.coerce.number().int().positive().refine(Number.isSafeInteger),
   priceId: z.string().trim().min(1).max(255)
 });
 

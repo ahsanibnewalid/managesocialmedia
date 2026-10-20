@@ -44,19 +44,6 @@ function parseWorkspaceId(input: unknown) {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-async function upsertSubscription(workspaceId: number, providerSubscriptionId: string | null, status: string) {
-  await db.query(
-    `INSERT INTO workspace_subscriptions(workspace_id, provider, provider_subscription_id, status, updated_at)
-     VALUES($1, 'stripe', $2, $3, now())
-     ON CONFLICT(workspace_id) DO UPDATE SET
-       provider='stripe',
-       provider_subscription_id=EXCLUDED.provider_subscription_id,
-       status=EXCLUDED.status,
-       updated_at=now()`,
-    [workspaceId, providerSubscriptionId, status]
-  );
-}
-
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return NextResponse.json({ error: "STRIPE_WEBHOOK_SECRET is required" }, { status: 500 });
@@ -86,8 +73,20 @@ export async function POST(request: NextRequest) {
     );
 
     if ((inserted.rowCount ?? 0) === 0) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ received: true, duplicate: true });
+      // A previously failed delivery is deliberately retryable. Only an event
+      // with processed_at set is considered permanently handled.
+      const existing = await client.query<{ processed_at: Date | null }>(
+        `SELECT processed_at
+         FROM billing_webhook_events
+         WHERE provider='stripe' AND event_key=$1
+         FOR UPDATE`,
+        [eventId]
+      );
+
+      if (existing.rows[0]?.processed_at) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ received: true, duplicate: true });
+      }
     }
 
     const object = (event.data?.object ?? {}) as Record<string, unknown>;
@@ -149,10 +148,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
+    // Keep failed events retryable. Do not mark processed_at here; if another
+    // delivery succeeds concurrently, its processed_at must remain authoritative.
     await db.query(
       `UPDATE billing_webhook_events
-       SET processed_at=now(), processing_error=$2
-       WHERE provider='stripe' AND event_key=$1`,
+       SET processing_error=$2
+       WHERE provider='stripe' AND event_key=$1 AND processed_at IS NULL`,
       [eventId, error instanceof Error ? error.message : "unknown error"]
     ).catch(() => {});
 
