@@ -18,6 +18,11 @@ The images below are **illustrative UI concepts**, not screenshots captured from
 
 For the full step-by-step explanation, see the [Visual Beginner's Guide](docs/BEGINNER_VISUAL_GUIDE.md).
 
+
+## Android app
+
+A native Kotlin + Jetpack Compose Android companion app is being developed in [`android-app/`](android-app/) with its current scope and build instructions in the [Android App Guide](docs/ANDROID_APP.md). The current increment is a UI/build scaffold; live login, workspace data, publishing, and analytics integration are not yet complete. GitHub Actions builds a test APK when Android app files change.
+
 ## Requirements
 
 - Node.js 22+
