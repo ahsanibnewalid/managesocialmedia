@@ -17,7 +17,7 @@ Do not label a release production-ready until each required item has evidence re
 - [ ] Redis is private, authenticated, persistent as appropriate, and reachable only by the app/worker.
 - [ ] Run schema migrations as a controlled release step, not concurrently from every application instance.
 - [ ] Deploy the web app and publishing worker as separate processes; verify worker restarts, graceful shutdown, queue retry/backoff, and alerts.
-- [ ] Configure HTTPS, security headers, rate limits, request-size limits, secure cookies, trusted-proxy settings, and a restrictive CORS policy where applicable.
+- [ ] Configure HTTPS, security headers, rate limits, request-size limits, secure cookies, trusted-proxy settings, and a restrictive CORS policy where applicable. The reverse proxy must overwrite `X-Forwarded-For` for the Redis-backed auth limiter; expand rate-limit coverage to other sensitive routes.
 - [ ] Verify workspace isolation and role-based authorization on every post, account, analytics, and publishing-attempt operation.
 - [ ] Verify OAuth state/PKCE, exact redirect URI matching, least-privilege scopes, revocation/refresh behavior, and token redaction in logs.
 - [ ] Test account connection and publish/refresh/revoke flows with authorized test accounts for every enabled platform. Record provider API version, scopes, results, and date.
@@ -32,7 +32,7 @@ Do not label a release production-ready until each required item has evidence re
 
 1. Confirm the health/readiness endpoints reflect real dependency state rather than always returning success.
 2. Register and sign in with a test account; confirm session expiry and logout.
-3. Create a draft in one workspace and verify a different workspace cannot access it by changing IDs.
+3. CI now verifies cross-workspace HTTP read/create/edit/delete denial for the legacy API. Repeat these negative tests against every Next.js API route and server action in staging.
 4. Connect a provider test account, publish a harmless test post, and verify provider-side result plus local audit/attempt records.
 5. Schedule a test post and observe it through queued, processing, and terminal status.
 6. Confirm logs contain no access tokens, secrets, passwords, or full OAuth callback query strings.
