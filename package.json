@@ -24,6 +24,7 @@
     "@types/pg": "^8.11.11",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
+    "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.10",
     "dotenv": "^16.4.7",
@@ -40,9 +41,7 @@
     "helmet": "^8.1.0",
     "express-rate-limit": "^8.1.0"
   },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
-  },
+  "devDependencies": {},
   "overrides": {
     "postcss": "^8.5.23"
   }
