@@ -7,6 +7,7 @@ import { Pool } from "pg";
 type AppliedMigration = { filename: string; checksum: string };
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "db", "migrations");
+const MIGRATION_LOCK_KEY = 731942118;
 
 function sha256(content: string) {
   return createHash("sha256").update(content).digest("hex");
@@ -29,62 +30,69 @@ async function listUpMigrations() {
 
 async function applyUp(pool: Pool) {
   const upFiles = await listUpMigrations();
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
+    for (const file of upFiles) {
+      const filePath = path.join(MIGRATIONS_DIR, file);
+      const sql = await fs.readFile(filePath, "utf8");
+      const checksum = sha256(sql);
+      const applied = await client.query<AppliedMigration>("SELECT filename, checksum FROM schema_migrations WHERE filename=$1", [file]);
 
-  for (const file of upFiles) {
-    const filePath = path.join(MIGRATIONS_DIR, file);
-    const sql = await fs.readFile(filePath, "utf8");
-    const checksum = sha256(sql);
-    const applied = await pool.query<AppliedMigration>("SELECT filename, checksum FROM schema_migrations WHERE filename=$1", [file]);
-
-    if ((applied.rowCount ?? 0) > 0) {
-      if (applied.rows[0].checksum !== checksum) {
-        throw new Error(`Checksum mismatch for already-applied migration: ${file}`);
+      if ((applied.rowCount ?? 0) > 0) {
+        if (applied.rows[0].checksum !== checksum) {
+          throw new Error(`Checksum mismatch for already-applied migration: ${file}`);
+        }
+        continue;
       }
-      continue;
-    }
 
-    const client = await pool.connect();
-    try {
       await client.query("BEGIN");
-      await client.query(sql);
-      await client.query("INSERT INTO schema_migrations(filename, checksum) VALUES($1, $2)", [file, checksum]);
-      await client.query("COMMIT");
-      console.info(`Applied migration ${file}`);
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      try {
+        await client.query(sql);
+        await client.query("INSERT INTO schema_migrations(filename, checksum) VALUES($1, $2)", [file, checksum]);
+        await client.query("COMMIT");
+        console.info(`Applied migration ${file}`);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
     }
+  } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]).catch(() => {});
+    client.release();
   }
 }
 
 async function applyDown(pool: Pool) {
-  const latest = await pool.query<{ filename: string }>(
-    "SELECT filename FROM schema_migrations ORDER BY applied_at DESC, filename DESC LIMIT 1"
-  );
-
-  if ((latest.rowCount ?? 0) === 0) {
-    console.info("No applied migrations to roll back.");
-    return;
-  }
-
-  const file = latest.rows[0].filename;
-  const downFile = file.replace(/\.sql$/, ".down.sql");
-  const downPath = path.join(MIGRATIONS_DIR, downFile);
-  const downSql = await fs.readFile(downPath, "utf8");
-
   const client = await pool.connect();
   try {
+    await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
+    const latest = await client.query<{ filename: string }>(
+      "SELECT filename FROM schema_migrations ORDER BY applied_at DESC, filename DESC LIMIT 1"
+    );
+
+    if ((latest.rowCount ?? 0) === 0) {
+      console.info("No applied migrations to roll back.");
+      return;
+    }
+
+    const file = latest.rows[0].filename;
+    const downFile = file.replace(/\.sql$/, ".down.sql");
+    const downPath = path.join(MIGRATIONS_DIR, downFile);
+    const downSql = await fs.readFile(downPath, "utf8");
+
     await client.query("BEGIN");
-    await client.query(downSql);
-    await client.query("DELETE FROM schema_migrations WHERE filename=$1", [file]);
-    await client.query("COMMIT");
-    console.info(`Rolled back migration ${file}`);
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
+    try {
+      await client.query(downSql);
+      await client.query("DELETE FROM schema_migrations WHERE filename=$1", [file]);
+      await client.query("COMMIT");
+      console.info(`Rolled back migration ${file}`);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
   } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]).catch(() => {});
     client.release();
   }
 }

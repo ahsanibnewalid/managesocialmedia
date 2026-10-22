@@ -9,9 +9,12 @@ function isRateLimitedPath(pathname: string) {
 }
 
 function requestIp(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const forwarded = request.headers.get("x-forwarded-for");
+  const forwardedHops = forwarded?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+  // The deployment proxy must overwrite X-Forwarded-For. Use the last trusted
+  // hop rather than the client-controlled first value to reduce spoofing.
   const ip = (request as NextRequest & { ip?: string }).ip;
-  return forwarded || ip || "unknown";
+  return forwardedHops.at(-1) || ip || "unknown";
 }
 
 export async function middleware(request: NextRequest) {
