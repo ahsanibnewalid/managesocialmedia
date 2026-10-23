@@ -132,6 +132,35 @@ This audit did not implement or execute a payment lifecycle. Dashboard credentia
 9. Verify backup restoration, real dependency health checks, worker recovery, and production deployment settings.
 10. Inspect actual GitHub Actions run results for the audit branch. Keep the PR unmerged if mandatory checks fail.
 
+## Monitoring update — 2026-10-23
+
+### Repository and pull-request state
+
+- PR #11 is **closed and merged** at `5ae9a221d24de01cde4517196020d8dda086ba1f`. This monitor did not merge it. The audit branch is no longer the head of an open PR.
+- The most recent inspected `main` commit is `4f0705d6379a196afb053e35806f257d71607543` (2026-10-21).
+- Open follow-up PR #15 is `production-certification-hardening`, head `5cf8b81a765469fddf75844c2ce7561db42ce302`. GitHub comparison reports the branch diverged from current `main`: 10 commits ahead and 8 behind, with merge base `89cc507a4eee6b0b3ccce99d5c4fa56f7467e9e2`.
+- The audit branch received a CI-only commit `3aa49668a4c4809af8e31181e0e5f45368cdecf5` to enable a concurrent migration-startup check on pushes to this branch. The Node.js workflow is configured to run on the audit branch. The production-readiness workflow trigger change was blocked and was not applied.
+- Existing PR #11 runs #62 and #175 passed on the old audit head `64d197be66c8ddb55a52ad7a3814be92c88ea988`; those runs do not verify the new CI-only commit. The latest inspected PR #15 runs are [Production readiness #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) and [Node.js checks #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755), both successful on the PR #15 head on 2026-10-20. No current-main PR-triggered runs were returned for commit `4f0705d6379a196afb053e35806f257d71607543`; current-main CI is therefore not certified by this check.
+
+### Verified CI evidence
+
+- PR #15 run #186 passed `npm ci`, TypeScript typecheck, concurrent migration startup, migration repeatability, PostgreSQL/Redis integration tests, production build, and legacy server/publishing syntax/import checks. Its test summary was 18 passed, 0 failed, 0 skipped.
+- PR #15 run #73 passed install, dependency audit, typecheck, tests, and production build. Both full and production npm audits reported zero vulnerabilities. That job ran 18 tests with 14 passing and 4 skipped because PostgreSQL/Redis services were not configured in that job; run #186 provides the configured integration evidence.
+- Both build logs contain non-fatal warnings: unresolved optional BullMQ dependency `@valkey/valkey-glide`, Node's deprecated `punycode` module, and a GitHub Actions Node.js 20 deprecation warning for `actions/checkout@v4` and `actions/setup-node@v4`. The successful build does not make these warnings release blockers by themselves, but the optional dependency warning should be confirmed against the intended Redis deployment.
+- The audit-branch CI-only commit is not yet verified by a completed run at the time of this report update.
+
+### Confirmed blockers on the current follow-up candidate
+
+1. **Stripe checkout price/origin validation:** `app/api/billing/checkout/route.ts` accepts a client-supplied `priceId` without a server-side plan/price allowlist. It rejects a mismatched Origin only when the header exists, so a missing Origin is accepted.
+2. **Stripe entitlement grant:** `checkout.session.completed` can mark a workspace subscription active based on event fields without retrieving and verifying the authoritative checkout session/subscription and matching payment status, Stripe customer, workspace, approved price, amount, and currency. A valid webhook signature proves event authenticity, not that the expected payment entitles the workspace to the requested plan.
+3. **Migration initialization race on PR #15:** `scripts/migrate.ts` calls `ensureMigrationsTable(pool)` before acquiring the advisory lock inside `applyUp`/`applyDown`. Concurrent fresh starts can race while creating `schema_migrations`. The PR #15 concurrency CI step passed once, but the ordering in source remains unsafe. The older audit-branch `scripts/migrate.js` acquires its lock before creating the history table; these are different implementations and must not be treated as equivalent.
+4. **Duplicate baseline migrations:** `0001_initial.sql` and `001_initial_schema.sql` on the follow-up candidate have the same Git blob hash, and CI logs show both being applied. No matching down migration exists for either baseline file. Do not delete or rewrite migrations that may already be recorded in deployed databases; define an explicit irreversible-baseline/adoption policy and test restore/forward recovery instead.
+5. **Publishing recovery:** the scheduled-post action commits the post before adding its BullMQ job. If enqueue fails, it returns a message that the database row remains scheduled and needs queue recovery. No automatic database-to-queue reconciliation loop was found in the inspected worker/queue path. The worker also creates `publish_attempts` schema objects at startup; move this responsibility into a versioned migration.
+6. **Provider and billing completeness:** SSLCOMMERZ hosted checkout, IPN handling, server-to-server Order Validation, transaction idempotency, risk review, and server-side subscription/usage enforcement remain unverified/incomplete. No sandbox payment lifecycle was executed.
+7. **Authentication and tenant isolation:** CI covers JWT validation/rate limiting and the legacy Express API's cross-workspace HTTP denial. Equivalent negative tests for every Next.js route/server action and worker operation, privileged-role boundaries, and real reverse-proxy IP-header behavior remain outstanding.
+8. **OAuth and Android:** token vault tests pass, but authorized-account OAuth refresh/revocation/publish flows have not been verified. The Android guide confirms local-only drafts and incomplete live login, workspace data, scheduling, publishing, and analytics. No Android APK build was verified for the current PR #15 head.
+9. **Operations:** encrypted backups, restore drills, production-like migration recovery, worker crash/restart recovery, monitoring/alerts, deployment rollback, and production health-check behavior still need environment-backed evidence.
+
 ## Current status
 
-**Not ready for production.** The audit branch contains targeted billing security hardening and regression tests, but the overall application, payment lifecycle, multi-tenant isolation, and deployment checks remain unverified. Reassess this status only after the remaining gates have recorded evidence.
+**Not ready for staging release or production.** An isolated engineering environment may be used with synthetic data, customer-facing checkout disabled or test-mode only, and no live social posts. PR #11 is already merged; do not treat its old checks as evidence for current `main` or the divergent PR #15 candidate. Do not deploy or charge real customers until the billing and migration blockers are corrected and the required checks pass on the exact release candidate.
