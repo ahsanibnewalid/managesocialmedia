@@ -45,3 +45,34 @@ Do not label a release production-ready until each required item has evidence re
 - LinkedIn analytics is not implemented.
 - Provider-side exactly-once publishing is not guaranteed on platforms without idempotency keys.
 - Illustrative README images are not product screenshots.
+
+## Monitoring snapshot — 2026-10-23
+
+This snapshot records observed repository state; it does not certify a release.
+
+### Commit and check evidence
+
+- PR #11 is closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`. Do not treat its historical checks as current-main verification.
+- Latest inspected `main` commit: `4f0705d6379a196afb053e35806f257d71607543` (2026-10-21). No PR-triggered run was returned for this commit during this check.
+- Open PR #15 head: `5cf8b81a765469fddf75844c2ce7561db42ce302`; compare against current `main` reports 10 commits ahead and 8 behind.
+- On PR #15, [Production readiness run #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) passed with 0 npm audit vulnerabilities; its test job skipped 4 DB/Redis-dependent tests because those services were not configured there.
+- On PR #15, [Node.js checks run #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755) passed `npm ci`, typecheck, concurrent migration startup, repeatability, PostgreSQL/Redis integration tests (18 passed, 0 failed, 0 skipped), build, and legacy server/publishing syntax/import checks.
+- The audit branch received CI-only commit `3aa49668a4c4809af8e31181e0e5f45368cdecf5` to trigger the Node.js workflow on this branch and run migrations concurrently on a clean CI database. That commit and this documentation update still require their own completed CI run. The production-readiness workflow trigger update was not applied.
+
+### Outstanding gates — do not mark complete yet
+
+- [ ] Run all required checks on the exact current audit-branch commit and the exact release candidate; separately verify current `main`.
+- [ ] Restrict Stripe checkout to a server-side allowlist of Price IDs and fail closed for missing/cross-origin browser mutation Origin.
+- [ ] Verify webhook events against authoritative Stripe session/subscription data, including payment status, workspace/customer association, approved price, amount, currency, and entitlement lifecycle. No real payments.
+- [ ] Fix the migration runner ordering in the current follow-up candidate so migration-history-table creation is protected by the same advisory lock; test simultaneous fresh startup repeatedly.
+- [ ] Resolve the duplicate baseline migration policy without editing/deleting migrations that may have been applied; test backup restore and forward recovery.
+- [ ] Implement database-to-queue reconciliation for scheduled posts whose enqueue operation failed; remove runtime DDL from worker startup via a new migration.
+- [ ] Implement and sandbox-test SSLCOMMERZ hosted checkout, IPN and server-side Order Validation, transaction idempotency, risk review, and server-side entitlement enforcement.
+- [ ] Complete tenant/role negative tests for all Next.js routes/actions and worker paths; verify reverse-proxy trust and rate-limit behavior.
+- [ ] Verify OAuth refresh/revocation and publishing with authorized test accounts for each enabled platform.
+- [ ] Build the Android debug APK on the current candidate and retain the artifact; live login, cross-device draft sync, workspace data, scheduling, publishing, and analytics remain incomplete.
+- [ ] Perform backup/restore, worker recovery, alerting/monitoring, health-check, deployment rollback, and migration-recovery drills in an isolated staging environment.
+
+### Release decision
+
+**Neither staging release approval nor production approval is supported by the evidence yet.** Use only an isolated engineering environment with synthetic data, checkout disabled or restricted to provider test mode, and no live social posts until the security and recovery gates above are verified.
