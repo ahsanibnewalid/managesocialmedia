@@ -76,3 +76,15 @@ This snapshot records observed repository state; it does not certify a release.
 ### Release decision
 
 **Neither staging release approval nor production approval is supported by the evidence yet.** Use only an isolated engineering environment with synthetic data, checkout disabled or restricted to provider test mode, and no live social posts until the security and recovery gates above are verified.
+
+
+## Monitoring snapshot — 2026-10-24
+
+- Audit branch head: `520aa29d884838b54f6ee982488880fbcf32c884`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. The audit branch is 3 commits ahead and 16 behind `main`.
+- PR #11 is closed; merge commit `5ae9a221d24de01cde4517196020d8dda086ba1f` was verified. Do not merge PR #11 again.
+- PR #15 remains open at `5cf8b81a765469fddf75844c2ce7561db42ce302`, 10 commits ahead and 8 behind `main`.
+- PR #15's latest available runs remain green: Production readiness #73 and Node.js checks #186. Those runs do not certify current `main` or the current audit branch.
+- No PR-triggered workflow run/status result was available for the audit branch head. The current audit-branch CI result is therefore **unverified**, not green.
+- Release blockers remain: Stripe approved-price and authoritative entitlement verification; migration-history initialization locking and baseline recovery policy; queue reconciliation and removal of worker runtime DDL; SSLCOMMERZ sandbox verification; complete tenant/role coverage; authorized provider smoke tests; current Android APK; backup/restore, monitoring, worker recovery, and deployment rollback drills.
+
+**Decision on 2026-10-24: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and checkout disabled or provider test-mode only. Do not deploy or charge real customers.
