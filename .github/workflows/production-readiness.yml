@@ -2,7 +2,7 @@ name: Production readiness checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, audit/full-production-readiness]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,6 +19,35 @@ jobs:
     name: Typecheck, tests and production build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tidepost_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tidepost_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tidepost_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-not-a-production-secret-123456789
+      SOCIAL_TOKEN_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
