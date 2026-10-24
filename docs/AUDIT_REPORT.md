@@ -168,35 +168,36 @@ This audit did not implement or execute a payment lifecycle. Dashboard credentia
 
 ## Monitoring snapshot — 2026-10-24
 
-This is a new monitoring snapshot, not a release certification.
+This snapshot reflects the source and workflow review performed before the documentation-only commits made to record it. It is not a release certification.
 
-### Repository and PR state verified on 2026-10-24
+### Repository and PR state
 
-- The current head of `audit/full-production-readiness` is `520aa29d884838b54f6ee982488880fbcf32c884` (verified by comparing the branch ref with that commit).
-- Current inspected `main` is `4f0705d6379a196afb053e35806f257d71607543`. The audit branch is **3 commits ahead and 16 behind** `main`; its three ahead commits touch the Node.js workflow and these audit documents, not the Stripe checkout implementation.
-- PR #11 is **closed** (closed 2026-10-20 06:53:23 UTC). Commit `5ae9a221d24de01cde4517196020d8dda086ba1f` is confirmed as the merge commit for PR #11. Do not reopen or merge it as part of this monitor.
+- Reviewed audit-branch/workflow commit: `f0bbebfbad587131f505dba1e741717cd5d4f407`. At this point in the run, the branch was 6 commits ahead and 16 behind current `main` (`4f0705d6379a196afb053e35806f257d71607543`). The three monitoring updates in this run cover CI configuration and the two audit documents; documentation commits made after this snapshot will advance the branch again.
+- PR #11 is closed (closed 2026-10-20 06:53:23 UTC). Commit `5ae9a221d24de01cde4517196020d8dda086ba1f` is confirmed as the merge commit for PR #11. Do not merge it again.
 - PR #15 remains open. Its head `5cf8b81a765469fddf75844c2ce7561db42ce302` matches `production-certification-hardening`; that branch is 10 commits ahead and 8 behind current `main`.
 
-### Check status
+### Checks and CI configuration
 
-- Latest available PR-triggered Production readiness run #73 (`39394723743`) completed successfully; its job conclusion is `success`.
-- Latest available PR-triggered Node.js checks run #186 (`39394723755`) completed successfully; its job conclusion is `success`.
-- These are checks for PR #15's head, **not** for the audit branch head or current `main`.
-- The commit-run lookup returned no PR-triggered runs for audit head `520aa29...`, and the combined status endpoint returned no status contexts. The workflow-run connector only exposes PR-triggered runs, so the push-triggered audit-branch workflow result could not be independently retrieved in this run. Do not mark the current audit head green without the run URL/result.
-- The previously recorded test evidence remains: PR #15 Node.js checks had 18 passing tests with PostgreSQL/Redis configured; the separate production-readiness job skipped four DB/Redis-dependent cases. Both previously recorded dependency audits reported zero vulnerabilities.
+- Latest available PR-triggered Production readiness run #73 (`39394723743`) completed successfully.
+- Latest available PR-triggered Node.js checks run #186 (`39394723755`) completed successfully.
+- Both runs belong to PR #15's head, not the audit branch or current `main`.
+- The commit-run lookup returned no PR-triggered runs for audit head `520aa29...`, and the combined-status endpoint returned no status contexts. The workflow-run connector only exposes PR-triggered runs, so the push-triggered audit-branch result could not be independently retrieved. Treat the latest audit-branch CI result as **unverified** until the run URL/result is available.
+- In this run, `.github/workflows/production-readiness.yml` was updated to run on pushes to `audit/full-production-readiness` and to provision PostgreSQL 16 and Redis 7 for tests. This should prevent DB/Redis integration tests from being skipped in that workflow. `.github/workflows/node.yml` already triggers on audit-branch pushes and runs concurrent migration startup plus repeatability checks. The new push-triggered results still need to be verified.
+- The latest available PR #15 Node.js evidence was 18 passing tests with PostgreSQL/Redis configured. Its separate production-readiness job had 14 passing tests and 4 skipped DB/Redis-dependent tests. The previous full and production dependency audits reported zero vulnerabilities.
 
-### Audit findings unchanged
+### Findings and blockers
 
 - Stripe checkout on PR #15 accepts a client-supplied price without a server-side approved-price allowlist and accepts a missing Origin header. The webhook can activate an entitlement without authoritative verification of payment status, subscription/customer/workspace association, approved price, amount, and currency.
-- In PR #15's `scripts/migrate.ts`, creation of `schema_migrations` occurs before the advisory lock; concurrent first-run initialization can race. The audit branch's legacy `scripts/migrate.js` does acquire its lock before creating the table, but this is not the same migration runner as PR #15's.
+- In PR #15's `scripts/migrate.ts`, creation of `schema_migrations` occurs before the advisory lock; concurrent first-run initialization can race. The audit branch's `scripts/migrate.js` does acquire its lock before creating the table, but it is not the same migration runner as PR #15's.
 - Duplicate baseline migrations and missing baseline down files require an explicit irreversible-baseline/forward-recovery policy, not a destructive rollback.
 - Scheduled posts can be persisted before BullMQ enqueue succeeds; automatic DB-to-queue reconciliation was not found. The worker also performs runtime DDL for `publish_attempts`.
 - Full Next.js route/action and worker tenant/role negative tests, SSLCOMMERZ sandbox lifecycle, authorized social OAuth/publishing tests, current-candidate Android APK, backup/restore, worker recovery, alerts, deployment rollback, and production smoke tests remain unverified.
 
 ### Changes in this run
 
-- No application source fix was applied: the most concrete new billing/migration findings are on the divergent PR #15 candidate, and copying those changes into the stale audit branch would not safely resolve the release candidate.
-- This snapshot records current branch/PR/check evidence only. The audit branch's current-head CI result still needs to be retrieved and confirmed.
+- Added an audit-branch push trigger and PostgreSQL/Redis services to the production-readiness workflow so its integration tests can execute instead of being skipped.
+- Updated this report and `docs/PRODUCTION_READINESS.md` to record verified repository state and remaining release gates.
+- No application source fix was applied: the concrete Stripe checkout/webhook and `scripts/migrate.ts` findings are on the divergent PR #15 candidate. Copying those changes into the stale audit branch would not safely fix the candidate that needs certification.
 
 ### Release decision
 
