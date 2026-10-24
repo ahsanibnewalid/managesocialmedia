@@ -80,11 +80,25 @@ This snapshot records observed repository state; it does not certify a release.
 
 ## Monitoring snapshot — 2026-10-24
 
-- Audit branch head: `520aa29d884838b54f6ee982488880fbcf32c884`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. The audit branch is 3 commits ahead and 16 behind `main`.
+This snapshot reflects the source and workflow review performed before the documentation-only commits made to record it.
+
+- Reviewed audit-branch/workflow commit: `f0bbebfbad587131f505dba1e741717cd5d4f407`; at review time the branch was 6 commits ahead and 16 behind current `main` (`4f0705d6379a196afb053e35806f257d71607543`). The documentation commits that follow this snapshot advance the branch again; check the current ref before using an exact-head status.
 - PR #11 is closed; merge commit `5ae9a221d24de01cde4517196020d8dda086ba1f` was verified. Do not merge PR #11 again.
 - PR #15 remains open at `5cf8b81a765469fddf75844c2ce7561db42ce302`, 10 commits ahead and 8 behind `main`.
-- PR #15's latest available runs remain green: Production readiness #73 and Node.js checks #186. Those runs do not certify current `main` or the current audit branch.
-- No PR-triggered workflow run/status result was available for the audit branch head. The current audit-branch CI result is therefore **unverified**, not green.
-- Release blockers remain: Stripe approved-price and authoritative entitlement verification; migration-history initialization locking and baseline recovery policy; queue reconciliation and removal of worker runtime DDL; SSLCOMMERZ sandbox verification; complete tenant/role coverage; authorized provider smoke tests; current Android APK; backup/restore, monitoring, worker recovery, and deployment rollback drills.
+- PR #15's latest available runs remain green: Production readiness #73 and Node.js checks #186. They do not certify current `main` or the audit branch.
+- No PR-triggered workflow result was available for the audit branch head. The run lookup does not expose push-triggered runs, so the audit branch's latest CI result is **unverified**, not green.
+- CI configuration was updated in this run so Production readiness runs on audit-branch pushes and provisions PostgreSQL/Redis for integration tests. The Node.js workflow already triggers on audit-branch pushes and tests concurrent migration startup. Verify the results on the final candidate commit before using them as release evidence.
+
+## Release gates still open
+
+- [ ] Restrict Stripe checkout to approved server-side Price IDs and reject missing/cross-origin browser mutation Origin.
+- [ ] Verify authoritative Stripe payment/session/subscription, customer/workspace association, approved price, amount, currency, and entitlement lifecycle. No real payments.
+- [ ] Resolve migration initialization locking in the PR #15 runner; define a safe irreversible-baseline/forward-recovery policy and test it on a disposable database.
+- [ ] Implement DB-to-queue reconciliation for scheduled posts whose BullMQ enqueue failed; move worker runtime DDL into a versioned migration.
+- [ ] Complete tenant/role negative tests across Next.js routes, server actions, and worker operations; verify trusted proxy/rate-limit behavior.
+- [ ] Implement and sandbox-test SSLCOMMERZ hosted checkout, IPN, server-side Order Validation, idempotency, risk review, and entitlements.
+- [ ] Verify authorized OAuth refresh/revocation and publishing for each enabled provider.
+- [ ] Build and retain an Android APK from the final candidate; live login, cross-device drafts, workspace data, scheduling, publishing, and analytics remain incomplete.
+- [ ] Complete backup/restore, worker recovery, alerting/monitoring, health-check, deployment rollback, and migration-recovery drills.
 
 **Decision on 2026-10-24: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and checkout disabled or provider test-mode only. Do not deploy or charge real customers.
