@@ -164,3 +164,40 @@ This audit did not implement or execute a payment lifecycle. Dashboard credentia
 ## Current status
 
 **Not ready for staging release or production.** An isolated engineering environment may be used with synthetic data, customer-facing checkout disabled or test-mode only, and no live social posts. PR #11 is already merged; do not treat its old checks as evidence for current `main` or the divergent PR #15 candidate. Do not deploy or charge real customers until the billing and migration blockers are corrected and the required checks pass on the exact release candidate.
+
+
+## Monitoring snapshot — 2026-10-24
+
+This is a new monitoring snapshot, not a release certification.
+
+### Repository and PR state verified on 2026-10-24
+
+- The current head of `audit/full-production-readiness` is `520aa29d884838b54f6ee982488880fbcf32c884` (verified by comparing the branch ref with that commit).
+- Current inspected `main` is `4f0705d6379a196afb053e35806f257d71607543`. The audit branch is **3 commits ahead and 16 behind** `main`; its three ahead commits touch the Node.js workflow and these audit documents, not the Stripe checkout implementation.
+- PR #11 is **closed** (closed 2026-10-20 06:53:23 UTC). Commit `5ae9a221d24de01cde4517196020d8dda086ba1f` is confirmed as the merge commit for PR #11. Do not reopen or merge it as part of this monitor.
+- PR #15 remains open. Its head `5cf8b81a765469fddf75844c2ce7561db42ce302` matches `production-certification-hardening`; that branch is 10 commits ahead and 8 behind current `main`.
+
+### Check status
+
+- Latest available PR-triggered Production readiness run #73 (`39394723743`) completed successfully; its job conclusion is `success`.
+- Latest available PR-triggered Node.js checks run #186 (`39394723755`) completed successfully; its job conclusion is `success`.
+- These are checks for PR #15's head, **not** for the audit branch head or current `main`.
+- The commit-run lookup returned no PR-triggered runs for audit head `520aa29...`, and the combined status endpoint returned no status contexts. The workflow-run connector only exposes PR-triggered runs, so the push-triggered audit-branch workflow result could not be independently retrieved in this run. Do not mark the current audit head green without the run URL/result.
+- The previously recorded test evidence remains: PR #15 Node.js checks had 18 passing tests with PostgreSQL/Redis configured; the separate production-readiness job skipped four DB/Redis-dependent cases. Both previously recorded dependency audits reported zero vulnerabilities.
+
+### Audit findings unchanged
+
+- Stripe checkout on PR #15 accepts a client-supplied price without a server-side approved-price allowlist and accepts a missing Origin header. The webhook can activate an entitlement without authoritative verification of payment status, subscription/customer/workspace association, approved price, amount, and currency.
+- In PR #15's `scripts/migrate.ts`, creation of `schema_migrations` occurs before the advisory lock; concurrent first-run initialization can race. The audit branch's legacy `scripts/migrate.js` does acquire its lock before creating the table, but this is not the same migration runner as PR #15's.
+- Duplicate baseline migrations and missing baseline down files require an explicit irreversible-baseline/forward-recovery policy, not a destructive rollback.
+- Scheduled posts can be persisted before BullMQ enqueue succeeds; automatic DB-to-queue reconciliation was not found. The worker also performs runtime DDL for `publish_attempts`.
+- Full Next.js route/action and worker tenant/role negative tests, SSLCOMMERZ sandbox lifecycle, authorized social OAuth/publishing tests, current-candidate Android APK, backup/restore, worker recovery, alerts, deployment rollback, and production smoke tests remain unverified.
+
+### Changes in this run
+
+- No application source fix was applied: the most concrete new billing/migration findings are on the divergent PR #15 candidate, and copying those changes into the stale audit branch would not safely resolve the release candidate.
+- This snapshot records current branch/PR/check evidence only. The audit branch's current-head CI result still needs to be retrieved and confirmed.
+
+### Release decision
+
+**Neither staging release approval nor production approval is supported.** Keep real checkout disabled or test-mode only, use synthetic data in isolated engineering tests, and do not publish live social posts until the relevant verification gates pass.
