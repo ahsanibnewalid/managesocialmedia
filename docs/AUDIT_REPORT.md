@@ -202,3 +202,57 @@ This snapshot reflects the source and workflow review performed before the docum
 ### Release decision
 
 **Neither staging release approval nor production approval is supported.** Keep real checkout disabled or test-mode only, use synthetic data in isolated engineering tests, and do not publish live social posts until the relevant verification gates pass.
+
+
+## Monitoring snapshot — 2026-10-25
+
+This snapshot records source and CI evidence inspected on 2026-10-25. It is not a release certification.
+
+### Repository and pull-request state
+
+- Source head reviewed before this documentation update: `81e23dcf10b4fb87e4f1c40c3e183051f9f57504` on `audit/full-production-readiness`.
+- Current `main` inspected: `4f0705d6379a196afb053e35806f257d71607543`.
+- GitHub compare reports the audit branch as 8 commits ahead and 16 behind `main`; the merge base is `64d197be66c8ddb55a52ad7a3814be92c88ea988`.
+- PR #11 is already closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`. It was not merged in this run and must not be merged again.
+- PR #15 remains the open hardening follow-up at `5cf8b81a765469fddf75844c2ce7561db42ce302`, but its candidate is divergent from current `main`.
+
+### Checks observed
+
+- PR #15 Production readiness run #73 (`39394723743`) completed successfully. All job steps, including dependency audit, typecheck, tests and production build, reported success.
+- PR #15 Node.js checks run #186 (`39394723755`) completed successfully. The job passed `npm ci`, typecheck, concurrent migration startup, migration repeatability, tests, production build and legacy API/publishing syntax/import checks.
+- In the Node.js run, the test step reported 18 passing tests, no failures and no skips with PostgreSQL/Redis configured. The separate production-readiness job reported 14 passing tests and 4 DB/Redis-dependent skips because its job did not configure those services.
+- The earlier PR #15 dependency-audit job reported zero vulnerabilities in the full and production dependency trees. This is not a new audit result for the current `main` or audit-branch head.
+- The connector returned no PR-triggered workflow runs or status contexts for audit head `81e23dcf10b4fb87e4f1c40c3e183051f9f57504`, and no PR-triggered run/status for current `main` `4f0705d6379a196afb053e35806f257d71607543`. The available run lookup filters to PR-triggered runs, so push-triggered CI on the audit branch is **unverified**, not presumed absent or successful.
+- The production-readiness workflow in the audit branch now triggers on audit-branch pushes and provisions PostgreSQL 16 and Redis 7; the Node.js workflow also triggers on that branch and runs concurrent migration checks. These workflow edits still need an accessible successful run on the exact post-update commit.
+
+### Newly verified findings on current main
+
+**High — Stripe checkout trusts a client-supplied price.** In `app/api/billing/checkout/route.ts` on current `main`, the request schema accepts any non-empty `priceId`; the handler forwards it to Stripe without an approved server-side price allowlist. The origin guard rejects a mismatched Origin only when the header is present, so a missing Origin is accepted. No real payment was attempted.
+
+**High — Stripe webhook can grant an active entitlement without authoritative payment verification.** In `app/api/billing/webhook/route.ts`, a signed `checkout.session.completed` event can cause the workspace subscription row to be written with status `active` based on metadata/client reference. The handler does not retrieve the authoritative Stripe session/subscription or verify payment status, customer/workspace association, approved price, amount and currency before activation. `lib/requireSubscription.ts` grants access when a row's status is `active`, so this gap affects entitlement enforcement. Signature validation and retry-aware event deduplication exist, but they do not replace these checks.
+
+**High — The migration command used by package scripts does not serialize migration startup.** Current `package.json` maps `npm run db:migrate` to `tsx scripts/migrate.ts`. That TypeScript runner calls `ensureMigrationsTable(pool)` before applying migrations and has no PostgreSQL advisory lock. A separate `scripts/migrate.js` contains a lock, but it is not the command configured by `db:migrate`. Do not treat the legacy JavaScript runner's lock as evidence that the configured migration command is serialized.
+
+**Medium — Duplicate baseline migration content and rollback gaps.** On current `main`, `db/migrations/0001_initial.sql` and `db/migrations/001_initial_schema.sql` have the same Git blob SHA (`d29e6b64538cc810aa903e3a25b84c8277b11712`). The TypeScript runner's `--down` path expects a matching `.down.sql`; baseline down files are absent. Do not add a destructive baseline rollback. Define an explicit irreversible-baseline/forward-recovery policy and test recovery from a verified backup.
+
+**Medium — Scheduled posts can be stranded when queue insertion fails.** `app/actions/createPost.ts` commits the scheduled post to PostgreSQL before calling BullMQ. If enqueue fails, it returns a message that the record remains scheduled and needs queue recovery. No automatic database-to-queue reconciliation was identified in the inspected path. `server/publishing-worker.js` also creates `publish_attempts` schema objects during startup; move that DDL into a versioned migration.
+
+**Medium — Render build install is not strict-lockfile installation.** Current `render.yaml` uses `npm install` despite a committed lockfile. Prefer `npm ci` for deterministic deployment installs after confirming the Render build environment has the dependencies needed for typecheck/build. The health-check route was added to main via PR #18, but a process-only health response is not evidence that PostgreSQL, Redis or the worker are healthy.
+
+### Other release gates still open
+
+- Complete tenant/role negative tests for every Next.js route, server action and worker path; verify session/cookie settings and trusted reverse-proxy behavior.
+- Implement and sandbox-test SSLCOMMERZ checkout, IPN and server-side Order Validation, transaction idempotency, risk review, subscription lifecycle and entitlements.
+- Test OAuth state/PKCE, refresh, revocation and publishing with authorized test accounts for every enabled provider.
+- Build and retain an Android APK from the exact candidate; live login, cross-device draft sync, workspace data, scheduling, publishing and analytics are still incomplete.
+- Complete backup/restore, migration recovery, worker restart/reconciliation, monitoring/alerts, dependency-aware health checks and deployment rollback drills.
+- Re-run dependency audit and all required checks on the exact release candidate. The available zero-vulnerability result is from PR #15's older candidate, not current main.
+
+### Changes in this run
+
+- Updated this report with current-main source findings and distinguished historical PR #15 CI success from unverified exact-head checks.
+- No application code was changed. The audit branch is 16 commits behind current main and lacks the current-main Stripe checkout/webhook files, so transplanting a billing fix into this stale branch would not safely remediate the release candidate. PR #11 was not merged, and no deployment or real payment was attempted.
+
+### Release decision — 2026-10-25
+
+**Neither staging release approval nor production approval is supported.** Use isolated engineering tests with synthetic data; keep customer-facing checkout disabled or restricted to provider test mode; do not publish live social posts until the relevant verification gates pass.
