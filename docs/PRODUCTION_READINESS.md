@@ -102,3 +102,35 @@ This snapshot reflects the source and workflow review performed before the docum
 - [ ] Complete backup/restore, worker recovery, alerting/monitoring, health-check, deployment rollback, and migration-recovery drills.
 
 **Decision on 2026-10-24: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and checkout disabled or provider test-mode only. Do not deploy or charge real customers.
+
+
+## Monitoring snapshot — 2026-10-25
+
+This snapshot reflects the current-main source review performed on 2026-10-25; it is not a release certification.
+
+### Candidate and CI evidence
+
+- Audit branch source head before this documentation update: `81e23dcf10b4fb87e4f1c40c3e183051f9f57504`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`.
+- GitHub compare reports the audit branch 8 commits ahead and 16 behind `main`. PR #11 is already closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; do not merge it again.
+- PR #15 head `5cf8b81a765469fddf75844c2ce7561db42ce302` has green available runs: Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`). Node.js checks passed 18 tests with PostgreSQL/Redis configured; the separate production-readiness job skipped four DB/Redis-dependent tests.
+- No accessible PR-triggered workflow/status result was returned for the exact audit-branch head or current main. Push-triggered CI results for the latest audit-branch commit are **unverified**. Do not treat older PR checks as certification of current main or the exact release candidate.
+
+### Newly verified source blockers on current main
+
+- [ ] Stripe checkout must use a server-side allowlist of approved Price IDs and reject missing or cross-origin browser mutation Origin headers.
+- [ ] Stripe webhook must verify authoritative payment/session/subscription data, customer/workspace association, approved price, amount and currency before granting an active entitlement. The current `requireActiveSubscription` trusts a row's `status='active'`.
+- [ ] `npm run db:migrate` invokes `scripts/migrate.ts`, which does not acquire an advisory lock and creates/checks the migration-history table before applying migrations. The separate JavaScript runner's lock does not protect the configured TypeScript command.
+- [ ] Duplicate baseline migration files have identical content; baseline down files are absent. Define a safe irreversible-baseline/forward-recovery policy and test backup restoration rather than adding destructive rollback.
+- [ ] Reconcile scheduled posts persisted in PostgreSQL when BullMQ enqueue fails. Move `publish_attempts` DDL out of worker startup and into a versioned migration.
+- [ ] Change Render's build install to deterministic lockfile-based installation after validating the build environment, and add separate dependency-aware readiness/monitoring for PostgreSQL, Redis and the worker.
+
+### Existing gates still open
+
+- [ ] Exact-head typecheck, tests, production build, full and production dependency audits, DB/Redis integration tests and concurrent migration test.
+- [ ] Full tenant/role negative tests across Next.js routes/actions and worker operations; session expiry/logout, cookie and trusted-proxy/rate-limit verification.
+- [ ] SSLCOMMERZ sandbox checkout, IPN, server-side Order Validation, idempotency, risk review and entitlement lifecycle.
+- [ ] Authorized social OAuth refresh/revocation and publishing/retry tests for every enabled platform.
+- [ ] Android APK built and retained from the exact candidate; live login, cross-device drafts, workspace data, scheduling, publishing and analytics remain incomplete.
+- [ ] Backup/restore, migration recovery, worker restart/reconciliation, monitoring/alerts and deployment rollback drills.
+
+**Decision on 2026-10-25: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and provider test mode only. Do not deploy, charge real customers, or publish live social posts until the relevant gates are verified.
