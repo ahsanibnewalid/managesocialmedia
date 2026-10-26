@@ -256,3 +256,40 @@ This snapshot records source and CI evidence inspected on 2026-10-25. It is not 
 ### Release decision — 2026-10-25
 
 **Neither staging release approval nor production approval is supported.** Use isolated engineering tests with synthetic data; keep customer-facing checkout disabled or restricted to provider test mode; do not publish live social posts until the relevant verification gates pass.
+
+
+## Monitoring snapshot — 2026-10-26
+
+This snapshot records evidence available on 2026-10-26. It is not a release certification.
+
+### Repository and workflow evidence
+
+- Audit branch head before this documentation update: `6ba2fa7cba03064de13b0b7cc39751ffd07bb2b3`.
+- Current `main` inspected: `4f0705d6379a196afb053e35806f257d71607543`.
+- GitHub compare reports `audit/full-production-readiness` as 10 commits ahead and 16 behind `main`. The branches have diverged; checks on one must not be presented as checks on the other.
+- PR #11 remains recorded in the prior audit history as closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`. This run did not merge it.
+- PR #15 head inspected: `5cf8b81a765469fddf75844c2ce7561db42ce302`. The latest accessible PR-triggered runs remain Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`), completed on 2026-10-20. Their jobs both concluded success.
+- The Node.js job log shows 18 tests, 0 failures, 0 skipped with PostgreSQL and Redis available. The production-readiness job shows 18 tests with 4 skipped because the test run did not have DB/Redis integration services configured. Its dependency audit reports 0 vulnerabilities, and its production build completed.
+- Build logs include non-fatal warnings for the optional BullMQ `@valkey/valkey-glide` module, Node's deprecated `punycode` module, GitHub Actions actions targeting Node.js 20, and Redis memory-overcommit configuration. Confirm deployment relevance rather than treating a green build as proof those concerns are resolved.
+- The workflow-run connector returned no PR-triggered runs and no combined status contexts for audit head `6ba2fa7cba03064de13b0b7cc39751ffd07bb2b3`. Because that lookup filters to PR-triggered runs, push-triggered results for this branch are **unverified**, not presumed failed or successful.
+
+### Source findings rechecked on current main
+
+- **High — Stripe checkout price and origin validation:** `app/api/billing/checkout/route.ts` accepts any non-empty client-supplied `priceId` and rejects an Origin mismatch only when Origin is present. Add a server-controlled approved-price allowlist and fail closed for missing/mismatched browser mutation Origin.
+- **High — Stripe entitlement verification:** `app/api/billing/webhook/route.ts` can activate a workspace subscription after a signed `checkout.session.completed` event without retrieving authoritative session/subscription details and verifying payment status, customer/workspace association, approved price, amount and currency. `lib/requireSubscription.ts` trusts the active row status, so this is an entitlement security issue. No real payment was attempted.
+- **High — configured migration runner:** `package.json` maps `npm run db:migrate` to `tsx scripts/migrate.ts`; that file creates/checks `schema_migrations` before migration execution and does not acquire the advisory lock found in the separate JavaScript runner. Fix the configured command, not just the unused runner.
+- **Medium — migration baseline/rollback:** `0001_initial.sql` and `001_initial_schema.sql` have identical Git blob hashes. The TypeScript rollback path expects a matching `.down.sql`, but baseline down files are absent. Do not add destructive baseline rollback; define an irreversible-baseline/forward-recovery policy and prove backup restoration.
+- **Medium — queue recovery and runtime DDL:** `app/actions/createPost.ts` persists scheduled posts before BullMQ enqueue; enqueue failure leaves a scheduled DB row needing recovery. No automatic reconciliation was identified in the inspected path. `server/publishing-worker.js` creates `publish_attempts` schema objects at startup; move this into a versioned migration.
+- **Medium — deployment readiness:** `app/api/health/route.ts` returns a process-level response without dependency checks for PostgreSQL, Redis or the worker. `render.yaml` uses `npm install` despite a committed lockfile; validate the build environment, then prefer deterministic `npm ci` for deployment.
+- **Documentation inconsistency:** the current README says checkout and subscription enforcement are not implemented, while Stripe checkout/webhook routes exist but are not production-safe. Clarify that billing endpoints exist but payment verification and entitlement enforcement are not certified.
+- **Social provider evidence:** the current README documents refresh for LinkedIn/X/TikTok where supported, Meta reconnect behavior, and unavoidable uncertainty if a provider accepts a post before the worker persists the result. Authorized-provider lifecycle and live publishing smoke tests remain outstanding.
+
+### Work performed this run
+
+- Re-read the current audit branch workflows, migration runner, audit documents, and current-main Stripe, migration, OAuth, publishing, health, deployment, and README files.
+- Updated the audit documentation with this snapshot. No application source patch was applied: the audit branch is 16 commits behind `main`, and the Stripe checkout/webhook and configured TypeScript migration issues belong to the newer code path. A partial transplant onto the stale branch would not safely remediate the current candidate.
+- No deployment, real payment, or live social post was attempted.
+
+### Release decision — 2026-10-26
+
+**Neither staging release approval nor production approval is supported.** Use isolated engineering tests with synthetic data and provider test mode only. Do not charge real customers or publish live social posts until the relevant gates are verified.
