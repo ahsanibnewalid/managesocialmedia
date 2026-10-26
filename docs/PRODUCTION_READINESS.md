@@ -134,3 +134,31 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Backup/restore, migration recovery, worker restart/reconciliation, monitoring/alerts and deployment rollback drills.
 
 **Decision on 2026-10-25: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and provider test mode only. Do not deploy, charge real customers, or publish live social posts until the relevant gates are verified.
+
+
+## Monitoring snapshot — 2026-10-26
+
+### Exact refs and CI evidence
+
+- Audit branch head before this documentation update: `6ba2fa7cba03064de13b0b7cc39751ffd07bb2b3`; inspected `main`: `4f0705d6379a196afb053e35806f257d71607543`.
+- GitHub compare reports the audit branch 10 commits ahead and 16 behind `main`. Do not use results from this diverged branch to certify current `main`.
+- PR #11 is recorded as closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; no merge was performed in this run.
+- PR #15 head `5cf8b81a765469fddf75844c2ce7561db42ce302`: latest accessible runs remain Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`), both successful on 2026-10-20. Node.js job logs show 18 tests passed, 0 failed, 0 skipped with PostgreSQL/Redis configured; production-readiness logs show 18 tests with 4 skipped for unavailable DB/Redis integration services. Dependency audit output reported 0 vulnerabilities; production build completed.
+- The run lookup returned no PR-triggered workflow run or combined status context for the exact audit branch head. Push-triggered CI for that exact commit is **unverified**.
+
+### Release blockers re-confirmed on current main
+
+- [ ] Stripe checkout must reject unapproved client-supplied Price IDs and fail closed on missing or mismatched Origin.
+- [ ] Stripe webhook must verify authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency and lifecycle before granting an entitlement.
+- [ ] Fix the configured `scripts/migrate.ts` runner so migration-table initialization and migration application are serialized by the same advisory lock.
+- [ ] Define a safe irreversible-baseline/forward-recovery policy for duplicate initial migration files and missing baseline down migrations; verify backup restoration.
+- [ ] Reconcile scheduled database posts whose BullMQ enqueue failed; move `publish_attempts` DDL into a versioned migration.
+- [ ] Add dependency-aware health/readiness checks for PostgreSQL, Redis and the worker; validate deterministic lockfile-based deployment installation.
+- [ ] Align README billing claims with the fact that Stripe endpoints exist but payment verification/entitlements are not production-certified.
+- [ ] Complete tenant/role negative tests across Next.js routes, server actions and workers; session/cookie/proxy/rate-limit verification.
+- [ ] Complete SSLCOMMERZ sandbox checkout, IPN, server-side Order Validation, idempotency, risk review and entitlements.
+- [ ] Verify authorized OAuth refresh/revocation and publishing/retry behavior for each enabled provider.
+- [ ] Build and retain an Android APK from the exact release candidate; live login/workspace/scheduling/publishing/analytics integration remains incomplete.
+- [ ] Complete backup/restore, migration recovery, worker restart/reconciliation, alerting/monitoring and deployment rollback drills.
+
+**Decision on 2026-10-26: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and provider test mode only. Do not deploy, charge real customers, or publish live social posts until the relevant gates are verified.
