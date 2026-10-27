@@ -162,3 +162,30 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Complete backup/restore, migration recovery, worker restart/reconciliation, alerting/monitoring and deployment rollback drills.
 
 **Decision on 2026-10-26: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data and provider test mode only. Do not deploy, charge real customers, or publish live social posts until the relevant gates are verified.
+
+
+## Monitoring snapshot — 2026-10-27
+
+### Exact refs and CI evidence
+
+- Audit branch code head reviewed before these documentation-only commits: `952d7a10685921a705f1cc12294b229ada764883`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. GitHub compare reports the audit branch 12 commits ahead and 16 behind `main`.
+- PR #11 is already closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; no merge was performed. Open PR #15 head is `5cf8b81a765469fddf75844c2ce7561db42ce302`, 10 commits ahead and 8 behind `main`.
+- Latest accessible PR #15 checks remain [Production readiness #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) and [Node.js checks #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755), both successful on 2026-10-20. Run #73 reported zero dependency vulnerabilities but skipped four DB/Redis-dependent tests. Run #186 passed `npm ci`, typecheck, concurrent migration startup, migration repeatability, PostgreSQL/Redis tests (18 passed, 0 failed, 0 skipped), build, and server/publishing syntax/import checks.
+- The build log contains a non-fatal missing optional BullMQ `@valkey/valkey-glide` module warning. CI also warns about Node.js 20 deprecation in checkout/setup actions and Redis memory overcommit.
+- The available workflow-run/status tools return no PR-triggered result for the exact audit head or current `main`; push-triggered CI is **unverified**, not green or failed. Require fresh results on the exact candidate.
+
+### Release gates confirmed open
+
+- [ ] Stripe checkout: server-side allowlist of approved Price IDs; reject missing/cross-origin browser mutation Origin.
+- [ ] Stripe webhook/entitlements: validate authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency, and lifecycle before activating access. No real payments.
+- [ ] Migration locking: current `main`'s configured `scripts/migrate.ts` has no advisory lock; PR #15 locks migration application but initializes `schema_migrations` before taking the lock. Serialize initialization and migration work in the actual release candidate and repeatedly test simultaneous fresh-database startup.
+- [ ] Baseline recovery: duplicate initial migration files have identical content and baseline down files are absent. Adopt an irreversible-baseline/forward-recovery policy and test backup restoration; do not add destructive rollback.
+- [ ] Publishing: reconcile scheduled database rows whose BullMQ enqueue failed; move `publish_attempts` schema creation out of worker startup and into a migration.
+- [ ] Health/deployment: current `/api/health` is process-only, not dependency readiness; validate database/Redis/worker health and use deterministic lockfile-based deployment installation.
+- [ ] Authentication/session and tenant isolation: expand negative tests to every Next.js route, server action, and worker; verify logout/expiry/cookies, role enforcement, trusted-proxy behavior, and rate limits.
+- [ ] SSLCOMMERZ: sandbox checkout, IPN, server-side Order Validation, idempotency, risk review, and server-side entitlements.
+- [ ] Social providers: authorized OAuth refresh/revocation and publishing/retry tests for each enabled provider.
+- [ ] Android: build and retain an APK from the exact release candidate; live login, workspace data, cross-device drafts, scheduling, publishing, and analytics remain incomplete.
+- [ ] Operations: backup/restore, migration recovery, worker restart/reconciliation, alerts/monitoring, and deployment rollback drills.
+
+**Decision on 2026-10-27: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until the relevant gates are verified.
