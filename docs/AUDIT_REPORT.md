@@ -293,3 +293,37 @@ This snapshot records evidence available on 2026-10-26. It is not a release cert
 ### Release decision — 2026-10-26
 
 **Neither staging release approval nor production approval is supported.** Use isolated engineering tests with synthetic data and provider test mode only. Do not charge real customers or publish live social posts until the relevant gates are verified.
+
+
+## Monitoring snapshot — 2026-10-27
+
+This snapshot was assembled from repository refs and GitHub Actions job logs on 2026-10-27. It is not a release certification.
+
+### Refs and checks
+
+- Audit branch code head reviewed before these documentation-only commits: `952d7a10685921a705f1cc12294b229ada764883`. GitHub compare against `main` reports 12 commits ahead and 16 behind; do not use this diverged branch to certify the current application.
+- Current `main` head observed: `4f0705d6379a196afb053e35806f257d71607543` (merge of the Render health-check endpoint PR). PR #11 is already closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; no merge was performed in this run.
+- Open follow-up PR #15 head reviewed: `5cf8b81a765469fddf75844c2ce7561db42ce302`, 10 commits ahead and 8 behind current `main`.
+- The latest accessible PR #15 runs remain [Production readiness #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) and [Node.js checks #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755), both successful on 2026-10-20. I re-read their job summaries/logs on this run.
+- Run #73 passed install, dependency-audit summary, typecheck, tests, and production build. The job's test summary had four DB/Redis-dependent cases skipped because that job did not configure those services. The dependency-audit summary reported zero full-tree and production-tree vulnerabilities.
+- Run #186 passed `npm ci`, typecheck, concurrent migration startup, migration repeatability, tests with PostgreSQL/Redis, build, and legacy API/publishing syntax/import checks. The test suite reported 18 passed, 0 failed, 0 skipped.
+- Build warnings remain: BullMQ's optional `@valkey/valkey-glide` module was not resolved; GitHub Actions checkout/setup actions warn about Node.js 20 deprecation; Redis CI logs warn that memory overcommit is disabled. These did not fail the jobs.
+- The available workflow-run/status tools returned no PR-triggered runs/status contexts for the exact audit head or current `main`. Because the run lookup filters to PR-triggered runs, this is **unverified**, not evidence of a failed push-triggered workflow. Do not call the exact current heads green.
+
+### Source findings re-confirmed
+
+- **Stripe checkout:** `app/api/billing/checkout/route.ts` on current `main` accepts a client-supplied `priceId` without a server-side approved-price allowlist and accepts a missing Origin header. Fix with server-side plan-to-price mapping and fail-closed Origin validation.
+- **Stripe webhook/entitlements:** the webhook verifies a Stripe signature and deduplicates events, but `checkout.session.completed` can set the workspace subscription to `active` using event metadata/client reference without retrieving and validating authoritative payment/session/subscription details. `lib/requireSubscription.ts` trusts a database row with `status='active'`. Validate payment status, customer/workspace association, approved price, amount, currency, subscription ID/status, and lifecycle before granting entitlements. No real payment was attempted.
+- **Migration locking:** current `main` configures `npm run db:migrate` as `tsx scripts/migrate.ts`; that runner does not acquire an advisory lock. PR #15's TypeScript runner does acquire a lock for migration application, but it creates/checks `schema_migrations` before taking the lock, so fresh concurrent startup can still race. The audit branch instead uses `node scripts/migrate.js`; patching that older runner would not fix the current-main command.
+- **Migration baseline/recovery:** `db/migrations/0001_initial.sql` and `001_initial_schema.sql` have identical content hashes. Baseline down files are absent while rollback attempts to read a matching down file. Define an explicit irreversible-baseline/forward-recovery policy and test restore from backup; do not add destructive baseline rollback.
+- **Queue recovery:** `app/actions/createPost.ts` commits a scheduled post before enqueueing BullMQ. If enqueue fails, the database row remains scheduled; no automatic reconciliation loop was found in the inspected path. Add database-to-queue reconciliation and move worker-startup `publish_attempts` DDL into a versioned migration.
+- **Health/deployment:** `app/api/health/route.ts` now exists and returns HTTP 200, but it only reports process status; it does not verify PostgreSQL, Redis, or worker readiness. `render.yaml` still uses `npm install` rather than a verified deterministic lockfile install.
+- **Android/provider/operations:** README confirms Android drafts are local and live login/workspace/scheduling/publishing/analytics are incomplete. No APK from the exact candidate, authorized-provider OAuth/publishing smoke test, SSLCOMMERZ sandbox lifecycle, backup/restore drill, worker recovery drill, or deployment rollback evidence was found in this run.
+
+### Work performed this run
+
+- Re-read the current audit branch, both workflows, current-main Stripe routes, configured migration script, health endpoint, Render config, publishing action, entitlement helper, README, and the latest accessible PR #15 job logs.
+- Updated this report and `docs/PRODUCTION_READINESS.md` with verified evidence only. No application source patch was applied because the requested audit branch uses a different migration entry point and lacks the current Stripe checkout route; a partial patch there would not remediate current `main`.
+- No merge, deployment, real payment, or live social post was performed.
+
+**Decision on 2026-10-27: neither staging release approval nor production approval is supported.** Isolated engineering tests may continue with synthetic data, checkout disabled or provider test mode only, and no live social posts until the relevant gates pass.
