@@ -327,3 +327,30 @@ This snapshot was assembled from repository refs and GitHub Actions job logs on 
 - No merge, deployment, real payment, or live social post was performed.
 
 **Decision on 2026-10-27: neither staging release approval nor production approval is supported.** Isolated engineering tests may continue with synthetic data, checkout disabled or provider test mode only, and no live social posts until the relevant gates pass.
+
+
+## Monitoring snapshot — 2026-10-28
+
+### Repository and CI evidence
+
+- PR #11 is confirmed **closed and merged** at `5ae9a221d24de01cde4517196020d8dda086ba1f`. No merge or deployment was performed during this run.
+- GitHub compare confirms `audit/full-production-readiness` exists and is **14 commits ahead / 16 behind** `main`. The compared `main` commit is `4f0705d6379a196afb053e35806f257d71607543`; merge base is `64d197be66c8ddb55a52ad7a3814be92c88ea988`.
+- The last exact audit-branch commit recorded before this update was `f2b57a2111f94819671cf7fcc889888465ff5321`. The available branch-search/PR-run interface did not expose the branch ref's current SHA, so this run does not claim that older SHA is a fresh pre-update head confirmation.
+- PR #15 remains open and unmerged; GitHub reports it was last updated on 2026-10-20. The latest accessible checks remain [Production readiness #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) and [Node.js checks #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755), both successful on 2026-10-20.
+- Re-read workflow job summaries and logs: Node.js checks ran `npm ci`, typecheck, concurrent migration safety, migration repeatability, PostgreSQL/Redis tests, build, and server/publishing syntax checks; test totals were **18 passed, 0 failed, 0 skipped**. Production-readiness job passed with **14 passed, 0 failed, 4 skipped** because DB/Redis integration cases were not enabled in that job.
+- The install log reported **0 vulnerabilities**; the dependency-audit step completed successfully. This is evidence for the tested PR #15 candidate only, not a fresh audit of this branch or current `main`.
+- The available workflow-run tool filters to PR-triggered runs and returned no runs/status contexts for the last recorded audit SHA or current `main`. Push-triggered checks on the exact current refs remain **unverified**, not failed and not green.
+
+### Release blockers reconfirmed
+
+- **Stripe:** current `main` checkout accepts a client-supplied Price ID without an approved server-side allowlist and accepts a missing Origin header. The webhook can activate subscription access without sufficiently verifying authoritative payment/subscription details, customer/workspace association, approved price, amount, currency, and lifecycle.
+- **Migrations:** the configured `npm run db:migrate` invokes `scripts/migrate.ts`, which lacks an advisory lock. The two initial migration files have identical content hashes; baseline down migrations are absent. Define safe irreversible-baseline/forward-recovery behavior and test backup restoration rather than adding destructive rollback.
+- **Publishing:** scheduled posts are persisted before BullMQ enqueue; enqueue failure can strand a scheduled DB row. No automatic reconciliation loop was found in the inspected path. Move worker-startup `publish_attempts` DDL into a versioned migration.
+- **Operations/deployment:** `/api/health` reports process status rather than PostgreSQL/Redis/worker readiness; `render.yaml` still uses `npm install`. Confirm deterministic lockfile install, dependency-aware readiness, backup/restore, worker recovery, alerts, and rollback.
+- **Remaining product gates:** tenant-isolation and RBAC coverage across all Next.js/server-action/worker paths; session/cookie/logout/proxy/rate-limit verification; SSLCOMMERZ sandbox checkout/IPN/Order Validation/idempotency/entitlements; authorized social OAuth refresh/revocation and publishing retries; an APK from the exact candidate with live integration; operational recovery drills.
+
+### Work performed and decision
+
+- Updated this audit report with the evidence above. No application source patch was applied because the audit branch is 16 commits behind `main` and uses a different migration entry point; patching only that stale code would not fix the current release candidate.
+- No real payment, live social post, merge, or deployment was attempted.
+- **Decision on 2026-10-28: NEITHER staging release approval nor production approval.** Isolated engineering tests may continue with synthetic data, checkout disabled or provider test mode only, and no live posts until the relevant gates are verified.
