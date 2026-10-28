@@ -189,3 +189,29 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Operations: backup/restore, migration recovery, worker restart/reconciliation, alerts/monitoring, and deployment rollback drills.
 
 **Decision on 2026-10-27: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until the relevant gates are verified.
+
+
+## Monitoring snapshot — 2026-10-28
+
+### Verified repository/check state
+
+- PR #11 is closed and merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; this monitoring run did not merge or deploy.
+- GitHub compare reports the audit branch **14 ahead / 16 behind** current `main` at `4f0705d6379a196afb053e35806f257d71607543`. The last exact audit-branch SHA recorded before this documentation update was `f2b57a2111f94819671cf7fcc889888465ff5321`; the available branch-search interface did not expose a fresh ref SHA.
+- PR #15 remains open and unmerged. Latest accessible runs: [Production readiness #73](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723743) and [Node.js checks #186](https://github.com/ahsanibnewalid/managesocialmedia/actions/runs/39394723755), both passed on 2026-10-20.
+- Job logs verify **18/18 passing tests** in the PostgreSQL/Redis Node.js job and **14 passed / 4 skipped / 0 failed** in the separate production-readiness job. The latter skipped DB/Redis-dependent cases. The install log reported zero vulnerabilities and the dependency-audit step passed.
+- No status contexts or PR-triggered runs were returned for the last recorded audit SHA or current `main`. Push-triggered CI for the exact latest refs remains **unverified**.
+
+### Release gates — still open
+
+- [ ] Stripe checkout: server-controlled allowlist of approved Price IDs; reject missing and cross-origin browser mutation Origin.
+- [ ] Stripe webhook/entitlements: verify authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency, and lifecycle before activating access; add regression tests for unpaid sessions and mismatched associations.
+- [ ] Migration runner: serialize initialization and migration application in the configured `scripts/migrate.ts`; repeatedly test simultaneous fresh startup.
+- [ ] Baseline recovery: document the duplicate initial migration files and missing baseline down files; use a safe irreversible-baseline/forward-recovery policy and verify backup restoration.
+- [ ] Publishing: reconcile scheduled database rows whose BullMQ enqueue failed; move `publish_attempts` DDL into a versioned migration; test Redis outage and worker restart recovery.
+- [ ] Auth/tenant isolation: test session expiry/logout/cookies, trusted-proxy and rate-limit behavior, and negative tenant/RBAC access across every Next.js route, server action, and worker path.
+- [ ] SSLCOMMERZ: sandbox checkout, IPN, server-side Order Validation, idempotency, risk review, and subscription entitlements.
+- [ ] Social providers: authorized OAuth refresh/revocation, publishing/retry and uncertain-outcome recovery tests for each enabled provider.
+- [ ] Android: produce and retain an APK from the exact candidate; verify live login, workspace data, scheduling, publishing, and analytics integration.
+- [ ] Operations: dependency-aware health/readiness, deterministic lockfile-based deployment install, backup/restore, worker recovery, monitoring/alerts, and rollback drills.
+
+**Decision on 2026-10-28: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until these gates are verified.
