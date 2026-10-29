@@ -354,3 +354,31 @@ This snapshot was assembled from repository refs and GitHub Actions job logs on 
 - Updated this audit report with the evidence above. No application source patch was applied because the audit branch is 16 commits behind `main` and uses a different migration entry point; patching only that stale code would not fix the current release candidate.
 - No real payment, live social post, merge, or deployment was attempted.
 - **Decision on 2026-10-28: NEITHER staging release approval nor production approval.** Isolated engineering tests may continue with synthetic data, checkout disabled or provider test mode only, and no live posts until the relevant gates are verified.
+
+
+## Monitoring snapshot — 2026-10-29
+
+### Repository and check evidence
+
+- Exact audit-branch head before these documentation-only updates: `fc2681e09c93bd4a99ccff47c1640737da9f0201`. A GitHub compare against that SHA returned `identical`, confirming it was the branch head at inspection time.
+- Current `main` head: `4f0705d6379a196afb053e35806f257d71607543`. GitHub compare reports `audit/full-production-readiness` is **16 commits ahead and 16 behind** `main`; it is diverged.
+- PR #11 is **closed and merged**, merge commit `5ae9a221d24de01cde4517196020d8dda086ba1f`. This run did not merge it. PR #15 remains open and unmerged.
+- Latest accessible PR #15 workflow runs remain Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`), both successful. Job logs retrieved on this run show the jobs completed successfully on 2026-10-20. Node.js checks include `npm ci`, typecheck, concurrent migration startup, repeatability, PostgreSQL/Redis integration tests, build, and publishing syntax/import checks. The production-readiness job skips four DB/Redis-dependent tests because those services are not configured in that job.
+- The logs report zero npm vulnerabilities for the tested PR #15 candidate. They also show a non-fatal Next.js build warning, Node.js `punycode` deprecation, GitHub Actions Node.js 20 deprecation warnings, and Redis memory-overcommit warning.
+- The available workflow-run/status tools returned no PR-triggered runs or status contexts for the exact audit-branch head or current `main`. This connector does not expose the push-triggered runs needed to certify those refs. Their exact-head CI is **unverified**, not failed and not green.
+
+### Current-main source findings reconfirmed
+
+- **Stripe checkout:** `app/api/billing/checkout/route.ts` accepts a client-supplied `priceId` without a server-side approved-price allowlist and accepts a missing Origin header.
+- **Stripe webhook/entitlements:** `app/api/billing/webhook/route.ts` can mark a workspace subscription active after a signed `checkout.session.completed` event without authoritative payment/subscription verification, including customer/workspace association, approved price, amount, currency, and payment status.
+- **Migration concurrency:** the configured `npm run db:migrate` runs `scripts/migrate.ts`, which creates/checks `schema_migrations` before migration application and does not acquire the advisory lock present in a separate JavaScript runner. CI logs also show both `0001_initial.sql` and `001_initial_schema.sql` being applied; those files have identical content hashes. Baseline down-migrations are absent.
+- **Publishing recovery:** `app/actions/createPost.ts` commits scheduled posts before enqueueing BullMQ jobs. Queue failure leaves a scheduled database row requiring recovery; no automatic reconciliation loop was found in the inspected path. Worker startup still creates `publish_attempts` schema objects.
+- **Operations:** `app/api/health/route.ts` reports process status only, not PostgreSQL/Redis/worker readiness. `render.yaml` uses `npm install`; deterministic lockfile-based deployment install and dependency-aware readiness remain unverified.
+- **Product/security gates still open:** comprehensive Next.js/server-action/worker tenant and role negative tests; session/cookie/logout/trusted-proxy/rate-limit verification; SSLCOMMERZ sandbox checkout/IPN/server-side Order Validation/idempotency/entitlements; authorized OAuth lifecycle and publishing tests; exact-candidate Android APK and live integration; backup/restore, worker recovery, alerting, and deployment rollback drills.
+
+### Work performed and decision
+
+- Updated the audit documentation with the verified state above. No application-source patch was applied: the audit branch is 16 commits behind current `main`, and its code path differs from the current Stripe and configured migration implementations. A patch limited to this stale branch would not fix the active candidate.
+- No regression test or application fix was claimed as completed in this run. The documentation commits themselves still require exact-head CI verification.
+- No merge, deployment, live social post, or real customer payment was attempted.
+- **Decision on 2026-10-29: NEITHER staging release approval nor production approval.** Continue only isolated engineering tests with synthetic data, checkout disabled or restricted to provider test mode, and no live social posts until the gates above are verified.
