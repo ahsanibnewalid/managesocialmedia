@@ -242,3 +242,10 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Run all required checks on the exact current candidate; separately verify current `main`. The older successful PR checks do not certify either exact ref.
 
 **Decision on 2026-10-29: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until these gates are verified.
+
+
+### PR #11 frozen-head check evidence — 2026-10-29
+
+- PR #11 is closed/merged; its frozen head is `64d197be66c8ddb55a52ad7a3814be92c88ea988`. Latest accessible checks: Production readiness #62 (`39380865420`) and Node.js checks #175 (`39380865262`), both successful.
+- Node.js job: `npm ci`, typecheck, migrations/repeatability, tests (**18 tests, 0 skipped**), build, and legacy publishing syntax/import checks passed. Production-readiness job passed but skipped four DB/Redis-dependent tests. Dependency audit logs reported zero vulnerabilities on that tested head.
+- This is historical evidence for the closed PR's head only. It does not certify the current audit branch or `main`; exact-head push-triggered CI remains unverified.
