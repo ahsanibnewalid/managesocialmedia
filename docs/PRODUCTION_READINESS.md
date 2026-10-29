@@ -215,3 +215,30 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Operations: dependency-aware health/readiness, deterministic lockfile-based deployment install, backup/restore, worker recovery, monitoring/alerts, and rollback drills.
 
 **Decision on 2026-10-28: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until these gates are verified.
+
+
+## Monitoring snapshot — 2026-10-29
+
+### Candidate and CI
+
+- Audit branch head before this documentation update: `fc2681e09c93bd4a99ccff47c1640737da9f0201`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. GitHub compare: **16 ahead / 16 behind**; do not treat the diverged audit branch as a certification of current `main`.
+- PR #11 is closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; this run did not merge it. PR #15 remains open and unmerged.
+- Latest accessible PR #15 checks are Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`), both successful. Logs show Node.js checks passed with PostgreSQL/Redis configured; the separate production-readiness job skipped four DB/Redis-dependent tests. Dependency audit reported zero vulnerabilities on that tested candidate.
+- No exact-head PR-triggered workflow run or status context was available for the audit branch or current `main`. Push-triggered CI for those refs remains **unverified**. The documentation commits made in this run also require CI on the new head.
+- Non-fatal warnings remain in the available build logs: optional BullMQ `@valkey/valkey-glide` resolution/build warning, Node.js `punycode` deprecation, actions targeting Node.js 20, and Redis memory-overcommit warning.
+
+### Release gates still open
+
+- [ ] Stripe checkout: use a server-side allowlist of approved Price IDs and reject missing/cross-origin browser mutation Origin.
+- [ ] Stripe webhook/entitlements: verify authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency, and lifecycle before granting access; add regression tests for unpaid sessions and mismatched associations.
+- [ ] Migration runner: serialize migration-history-table initialization and migration application in the configured `scripts/migrate.ts`; repeatedly test concurrent fresh-database startup.
+- [ ] Baseline recovery: document duplicate initial migration files and absent baseline down-migrations; define safe irreversible-baseline/forward-recovery behavior and verify backup restoration. Do not add destructive baseline rollback.
+- [ ] Publishing: reconcile scheduled database rows whose BullMQ enqueue failed; move worker-startup `publish_attempts` DDL into a versioned migration; test Redis outage and worker restart recovery.
+- [ ] Authentication/tenant isolation: negative role/tenant tests across Next.js routes, server actions, and worker operations; session expiry/logout/cookie checks; trusted-proxy and rate-limit verification.
+- [ ] SSLCOMMERZ: sandbox checkout, IPN, server-side Order Validation, idempotency, risk review, and subscription entitlements.
+- [ ] Social providers: authorized OAuth refresh/revocation, publishing retries, and uncertain-outcome recovery tests for each enabled provider.
+- [ ] Android: build and retain an APK from the exact candidate; verify live login, workspace data, scheduling, publishing, and analytics integration.
+- [ ] Operations: dependency-aware health/readiness, deterministic lockfile-based deployment install, backup/restore, worker recovery, monitoring/alerts, and deployment rollback drills.
+- [ ] Run all required checks on the exact current candidate; separately verify current `main`. The older successful PR checks do not certify either exact ref.
+
+**Decision on 2026-10-29: NEITHER staging release approval nor production approval.** Use isolated engineering tests with synthetic data, checkout disabled or provider test mode only, and no live social posts until these gates are verified.
