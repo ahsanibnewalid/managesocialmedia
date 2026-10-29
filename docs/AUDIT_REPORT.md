@@ -382,3 +382,10 @@ This snapshot was assembled from repository refs and GitHub Actions job logs on 
 - No regression test or application fix was claimed as completed in this run. The documentation commits themselves still require exact-head CI verification.
 - No merge, deployment, live social post, or real customer payment was attempted.
 - **Decision on 2026-10-29: NEITHER staging release approval nor production approval.** Continue only isolated engineering tests with synthetic data, checkout disabled or restricted to provider test mode, and no live social posts until the gates above are verified.
+
+
+### Additional PR #11 head check verification — 2026-10-29
+
+- PR #11's frozen head is `64d197be66c8ddb55a52ad7a3814be92c88ea988`; the PR is closed/merged, not an active draft. Its latest accessible checks were Production readiness #62 (`39380865420`) and Node.js checks #175 (`39380865262`), both completed successfully on 2026-10-20.
+- Job logs show the Node.js job ran `npm ci`, typecheck, migration/repeatability checks, tests (18 tests, 0 skipped), production build, and legacy publishing syntax/import checks successfully. The production-readiness job completed successfully but skipped four DB/Redis-dependent tests. The logs reported zero npm vulnerabilities for that tested PR head.
+- These checks apply to PR #11's frozen head, not the current audit-branch head or current `main`. The current audit branch is at least two documentation commits newer; exact-head push CI remains unverified through the available workflow/status lookup.
