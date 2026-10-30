@@ -249,3 +249,30 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - PR #11 is closed/merged; its frozen head is `64d197be66c8ddb55a52ad7a3814be92c88ea988`. Latest accessible checks: Production readiness #62 (`39380865420`) and Node.js checks #175 (`39380865262`), both successful.
 - Node.js job: `npm ci`, typecheck, migrations/repeatability, tests (**18 tests, 0 skipped**), build, and legacy publishing syntax/import checks passed. Production-readiness job passed but skipped four DB/Redis-dependent tests. Dependency audit logs reported zero vulnerabilities on that tested head.
 - This is historical evidence for the closed PR's head only. It does not certify the current audit branch or `main`; exact-head push-triggered CI remains unverified.
+
+
+## Monitoring snapshot — 2026-10-30
+
+### Candidate and CI evidence
+
+- Audit branch head before this documentation-only update: `c6d66466ab6aff827be6a91f75301bd57b056111`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. GitHub compare: **20 ahead / 16 behind**. PR #11 is closed/merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; no merge was performed.
+- PR #11 frozen head `64d197be66c8ddb55a52ad7a3814be92c88ea988`: Production readiness #62 and Node.js checks #175 passed on 2026-10-20. Node.js: 18 passed, 0 failed, 0 skipped with PostgreSQL/Redis. Production readiness: 14 passed, 4 DB/Redis-dependent tests skipped. npm audit reported zero vulnerabilities on that tested head.
+- PR #15 remains open at `5cf8b81a765469fddf75844c2ce7561db42ce302`, **10 ahead / 8 behind** current `main`. Production readiness #73 and Node.js checks #186 passed on 2026-10-20. Node.js: 18 passed, 0 failed, 0 skipped with PostgreSQL/Redis; production readiness: 14 passed, 4 skipped. npm audit reported zero vulnerabilities on that tested candidate.
+- No PR-triggered workflow runs or combined status contexts were returned for exact audit head `c6d66466ab6aff827be6a91f75301bd57b056111` or current `main`. The available run lookup exposes PR-triggered runs only; push-triggered exact-head CI is **unverified**. Do not infer green from the historical PR runs.
+- PRs #16/#17 fixed production-build TypeScript/bcryptjs declarations; PR #18 added a process-only `/api/health` route. These changes are in current `main`, not evidence of dependency readiness or a completed production deployment.
+
+### Release gates — still open
+
+- [ ] Stripe checkout: server-side allowlist for approved Price IDs; reject missing/cross-origin browser mutation Origin.
+- [ ] Stripe webhook/entitlements: retrieve and validate authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency, and lifecycle before granting access; add negative regression tests.
+- [ ] SSLCOMMERZ: implement sandbox checkout, IPN, server-side Order Validation, idempotency, risk review, and entitlement lifecycle. Credential settings alone are not payment processing.
+- [ ] Migration runner: add the advisory lock to the configured current-main `scripts/migrate.ts`; in PR #15 candidate, acquire the lock before migration-history-table initialization. Repeat concurrent fresh-database tests.
+- [ ] Baseline recovery: duplicate initial SQL files have identical blob hashes; baseline down files are absent. Define safe irreversible-baseline/forward-recovery and test backup restoration; no destructive baseline rollback.
+- [ ] Publishing: reconcile scheduled DB posts whose BullMQ enqueue failed; move worker-startup `publish_attempts` DDL into a migration; test Redis outage/worker restart and uncertain provider outcomes.
+- [ ] Auth/tenant isolation: verify proxy overwrites forwarded-IP headers; align middleware and auth rate-limit client-IP logic; add safe-integer workspace/date validation; extend negative RBAC/tenant tests to all Next.js routes, server actions, and workers.
+- [ ] OAuth/providers: verify authorized refresh/revocation and live publishing for each provider; Meta refresh remains a reconnect flow; confirm scopes and failure recovery.
+- [ ] Android: build and retain an APK from the exact release candidate; live login, workspace data, cross-device drafts, scheduling, publishing, and analytics remain incomplete.
+- [ ] Operations: dependency-aware health/readiness for PostgreSQL/Redis/worker; switch deployment install to a verified deterministic lockfile command; complete backup/restore, worker recovery, alerting, monitoring, and rollback drills.
+- [ ] Run typecheck, full and production dependency audits, DB/Redis integration tests, concurrent migration tests, and production build on the exact final candidate. Current audit-head and current-main exact-head CI remain unverified.
+
+**Decision on 2026-10-30: NEITHER staging release approval nor production approval.** Isolated engineering tests only, with synthetic data, checkout disabled or provider test mode, and no live social posts or customer charges.
