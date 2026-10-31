@@ -276,3 +276,40 @@ This snapshot reflects the current-main source review performed on 2026-10-25; i
 - [ ] Run typecheck, full and production dependency audits, DB/Redis integration tests, concurrent migration tests, and production build on the exact final candidate. Current audit-head and current-main exact-head CI remain unverified.
 
 **Decision on 2026-10-30: NEITHER staging release approval nor production approval.** Isolated engineering tests only, with synthetic data, checkout disabled or provider test mode, and no live social posts or customer charges.
+
+
+## Monitoring snapshot — 2026-10-31
+
+### Candidate, PRs, and checks
+
+- Audit branch source head before this documentation update: `c7d1a196bb808faa6e7cd1cd9bee3abaaa40c0f4`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`. Compare: **25 ahead / 16 behind**; branch is diverged.
+- PR #11 is closed and merged at `5ae9a221d24de01cde4517196020d8dda086ba1f`; its frozen head is `64d197be66c8ddb55a52ad7a3814be92c88ea988`. Main is 15 commits ahead and 0 behind the merge commit. No merge was performed in this run.
+- PR #15 is returned by an open-PR search. Last inspected head `5cf8b81a765469fddf75844c2ce7561db42ce302` compares **10 ahead / 8 behind** current `main`; treat this as the last inspected SHA, not a newly confirmed PR head.
+- Historical PR #11 checks #62/#175 and PR #15 checks #73/#186 passed on 2026-10-20. Node jobs each ran 18 tests with PostgreSQL/Redis and no skips; PR #11 Node job verified migration repeatability, while PR #15 Node job also completed concurrent migration safety. Each production-readiness job passed with 14 tests and 4 DB/Redis-dependent skips.
+- The historical dependency audit reported zero vulnerabilities on the tested PR candidates. This is not a current-head dependency audit.
+- The branch workflows are configured for pushes to the audit branch, but the available workflow-run lookup is PR-trigger-only. The combined status and PR-run lookup for exact source head `c7d1a196...` returned no contexts/runs. **Exact-head checks remain unverified**; the newly added regression tests must not be called passed until Actions evidence for that SHA is available.
+
+### Verified fix committed this run
+
+- [x] Require safe positive integer workspace IDs in `createPost`.
+- [x] Reject invalid schedule dates and dates less than 30 seconds in the future before database writes.
+- [x] Add unit regression coverage for unsafe IDs and invalid/past/too-soon schedule timestamps.
+- [ ] Obtain exact-head GitHub Actions results for the new tests, typecheck, integration suite, dependency audit, migration concurrency, and production build.
+
+Relevant commits: `771115caf04e54a8ce10ea8aeadb8503db9e7e3e`, `1e48973ac7be19edfa87dc97711a9fc44ba010a6`, `c7d1a196bb808faa6e7cd1cd9bee3abaaa40c0f4`.
+
+### Current-main release gates still open
+
+- [ ] Stripe checkout: server-side approved-price allowlist; reject missing and cross-origin mutation Origin.
+- [ ] Stripe webhook/entitlements: retrieve and validate authoritative payment/session/subscription, customer/workspace association, approved price, amount, currency, and lifecycle before granting access; add negative regression tests.
+- [ ] SSLCOMMERZ and international billing: implement sandbox checkout, IPN, server-side Order Validation, idempotency, risk handling, subscription lifecycle, and entitlement enforcement. Credential storage alone is not payment processing.
+- [ ] Migration safety: current `main` configures `scripts/migrate.ts` without an advisory lock. The audit branch's locked `scripts/migrate.js` is not the current-main command. Resolve duplicate identical baseline migrations and define an irreversible-baseline/forward-recovery policy; no destructive baseline rollback.
+- [ ] Publishing: reconcile scheduled DB rows whose BullMQ enqueue failed; move worker-startup `publish_attempts` DDL into a versioned migration; test Redis outage, worker restart, duplicate jobs, and uncertain provider outcomes.
+- [ ] Auth/session: align middleware and auth-action client-IP trust; verify reverse-proxy overwrite behavior; add server-side session revocation or document/accept the 12-hour bearer-token window with compensating controls.
+- [ ] Tenant isolation/RBAC: add negative tests across all Next.js routes, server actions, and workers; existing legacy HTTP cross-workspace coverage is not exhaustive.
+- [ ] OAuth/providers: authorized refresh/revocation/publishing smoke tests for each enabled provider; verify scopes, provider API versions, retries, and reconnect handling.
+- [ ] Android: build and retain a debug APK from the exact candidate; verify login, workspace data, sync, scheduling, publishing, and analytics before claiming integration.
+- [ ] Operations: dependency-aware health/readiness for PostgreSQL/Redis/worker; deterministic lockfile install; backup/restore, worker recovery, monitoring/alerts, and deployment rollback drills.
+- [ ] Run the complete required workflow suite on the exact final candidate and inspect all job logs. Historical PR checks do not certify current `main` or the updated audit head.
+
+**Decision on 2026-10-31: NEITHER staging release approval nor production approval.** Engineering-only testing with synthetic data and provider test mode remains the maximum supported release posture.
