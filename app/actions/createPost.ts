@@ -4,9 +4,10 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser, requireWorkspaceRole } from "@/lib/auth";
 import { enqueueScheduledPost } from "@/lib/publishing-queue";
+import { isValidScheduleDate, safeWorkspaceIdSchema } from "@/lib/post-validation";
 
 const schema = z.object({
-  workspaceId: z.coerce.number().int().positive(),
+  workspaceId: safeWorkspaceIdSchema,
   text: z.string().trim().min(1).max(10_000),
   mediaUrl: z.string().url().max(2048).refine(value => value.startsWith("https://"), "Media URL must use HTTPS").optional().or(z.literal("")),
   platforms: z.array(z.enum(["facebook","instagram","linkedin","x","tiktok"])).min(1).max(5),
@@ -30,8 +31,8 @@ export async function createPost(_previous: CreatePostState, formData: FormData)
   const role = await requireWorkspaceRole(user.id, data.workspaceId, ["owner","admin","editor"]);
   if (!role) return { ok:false, message:"Workspace not found or you do not have permission to publish." };
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null;
-  if (scheduledAt && scheduledAt.getTime() < Date.now() + 30_000) {
-    return { ok:false, message:"Choose a schedule at least 30 seconds in the future." };
+  if (scheduledAt && !isValidScheduleDate(scheduledAt)) {
+    return { ok:false, message:"Choose a valid schedule at least 30 seconds in the future." };
   }
   const status = scheduledAt ? "scheduled" : "draft";
   const client = await db.connect();
