@@ -421,3 +421,50 @@ This snapshot was assembled from repository refs and GitHub Actions job logs on 
 - Updated this report with the evidence above. No application-source patch was applied: the requested audit branch is 16 commits behind current `main`, and current-main Stripe/migration implementations differ from the branch's code. Applying a partial patch to this stale branch would not fix the active release candidate.
 - No merge, deployment, live social post, or real customer payment was attempted.
 - **Decision on 2026-10-30: NEITHER staging release approval nor production approval.** Continue only isolated engineering tests with synthetic data, checkout disabled or provider test mode, and no live posts until the gates above are verified.
+
+
+## Monitoring snapshot — 2026-10-31
+
+### Repository and pull-request state
+
+- Audit branch source head before this report update: `c7d1a196bb808faa6e7cd1cd9bee3abaaa40c0f4`; current `main`: `4f0705d6379a196afb053e35806f257d71607543`.
+- GitHub compare after today's code fix: audit branch is **25 commits ahead and 16 behind** `main`; it remains diverged and is not a current-main release candidate.
+- PR #11 is **closed**, not an active draft. Its frozen head is `64d197be66c8ddb55a52ad7a3814be92c88ea988`; merge commit `5ae9a221d24de01cde4517196020d8dda086ba1f` is an ancestor of current `main` (main is 15 commits ahead and 0 behind that merge commit). This run did not merge PR #11.
+- PR #15 is returned by an open-PR search. Its last inspected head remains `5cf8b81a765469fddf75844c2ce7561db42ce302`; comparison against current `main` is **10 ahead / 8 behind**. The current PR head was not independently returned by the connector's PR-search response, so treat that SHA as the last inspected head rather than a newly confirmed head.
+
+### GitHub Actions evidence
+
+- PR #11 frozen-head Production readiness #62 (`39380865420`) and Node.js checks #175 (`39380865262`) completed successfully on 2026-10-20.
+- PR #11 Node.js job logs show `npm ci` installed 152 packages and reported zero vulnerabilities; typecheck, migration application/repeatability, PostgreSQL/Redis integration tests, HTTP cross-workspace test, build, and server/publishing syntax checks passed. Test summary: **18 passed, 0 failed, 0 skipped**.
+- PR #11 Production readiness job passed; its unit-only environment reported **14 passed, 4 skipped**. The skipped tests explicitly required `DATABASE_URL` and/or `REDIS_URL`, which were not configured in that job.
+- Last inspected PR #15 Production readiness #73 (`39394723743`) and Node.js checks #186 (`39394723755`) also completed successfully on 2026-10-20. Node.js: **18 passed, 0 failed, 0 skipped**, with PostgreSQL/Redis services. The concurrent migration-safety and repeatability steps both succeeded. Production readiness: **14 passed, 4 skipped**.
+- PR #15 Node.js logs show the migration runner applied both `0001_initial.sql` and `001_initial_schema.sql`; the two files on current `main` have the same Git blob SHA `d29e6b64538cc810aa903e3a25b84c8277b11712`. This is a duplicate-baseline migration risk, not a test failure.
+- The audit branch's current workflow YAMLs explicitly configure push triggers for `audit/full-production-readiness`. However, the available commit-workflow lookup only returns PR-triggered runs. For exact head `c7d1a196...`, the combined commit status returned no status contexts and the PR-triggered run lookup returned no runs. **Push-triggered exact-head CI is therefore unverified**, not failed or passed. Do not use the historical PR runs as certification for this head.
+- Non-fatal historical log warnings include Next.js compilation warnings, Node's deprecated `punycode` module, GitHub Actions Node.js 20 deprecation notices for existing actions, and Redis memory-overcommit warnings.
+
+### Code changes made on the audit branch
+
+- Added `lib/post-validation.ts` with a Zod schema requiring workspace IDs to be safe positive integers and a pure schedule validator rejecting invalid timestamps and schedules less than 30 seconds in the future.
+- Updated `app/actions/createPost.ts` to use the safe workspace-ID schema and reject invalid/too-soon schedule dates before database writes.
+- Added `tests/post-validation.test.ts` covering valid IDs, zero/negative/unsafe IDs, infinity, invalid dates, past dates, too-soon dates, and the 30-second boundary.
+- Commits: helper `771115caf04e54a8ce10ea8aeadb8503db9e7e3e`; regression tests `1e48973ac7be19edfa87dc97711a9fc44ba010a6`; action integration `c7d1a196bb808faa6e7cd1cd9bee3abaaa40c0f4`.
+- The change is committed and the files were fetched back from GitHub. **The new regression tests have not yet been observed running in Actions** because exact-head push-triggered run results are not exposed by the available workflow lookup. Do not mark them CI-passed until a run for the exact commit is inspected.
+- The audit branch's `package.json` maps `db:migrate` to `node scripts/migrate.js`; that branch runner acquires a PostgreSQL advisory lock before creating `schema_migrations`. The branch's Node workflow also contains concurrent migration and repeatability steps. This is branch-specific evidence; it does not fix the different migration runner on current `main`.
+
+### Current-main findings rechecked on 2026-10-31
+
+- **Stripe checkout:** `app/api/billing/checkout/route.ts` accepts a caller-supplied `priceId` without a server-side approved-price allowlist. It rejects a mismatching Origin only when the header is present, so a missing Origin is accepted.
+- **Stripe webhook/entitlements:** the webhook validates the Stripe signature/timestamp and deduplicates event IDs, but on `checkout.session.completed` it activates a workspace subscription from event metadata/client reference and the subscription ID without retrieving and validating authoritative session/payment/subscription, customer/workspace, approved price, amount, and currency details. `lib/requireSubscription.ts` grants access based on a row marked `active`.
+- **SSLCOMMERZ/international billing:** the current billing-credentials documentation explicitly says the credential APIs are not checkout or settlement and that hosted checkout, IPN, Order Validation, international adapter, refunds, recurring billing, and subscription enforcement are not implemented. No sandbox transaction was attempted.
+- **Migration runner on current `main`:** `package.json` configures `npm run db:migrate` as `tsx scripts/migrate.ts`. That runner calls `ensureMigrationsTable(pool)` and applies migrations without an advisory lock. The separate locked `scripts/migrate.js` is not the configured command on current `main`. The two identical initial SQL files are both selected by the runner; PR #15's CI log confirms both were applied. Baseline down-migration files are absent; do not run a destructive baseline rollback.
+- **Publishing queue:** `app/actions/createPost.ts` commits a scheduled post before BullMQ enqueueing. On enqueue failure it returns a success-shaped result and leaves a scheduled database row requiring recovery. `server/publishing-worker.js` still creates `publish_attempts` DDL during worker startup although the baseline migration already creates it.
+- **Authentication/session:** login signs a 12-hour JWT with issuer `tidepost`; the cookie is HttpOnly, Secure in production, SameSite=Lax, and has a 12-hour max age. Logout deletes the cookie, but no server-side token/session revocation mechanism was observed in the inspected flow. The middleware rate limiter takes the first `X-Forwarded-For` hop while the auth-action limiter takes the last; the latter documents that the reverse proxy must overwrite the header. Proxy behavior is not verified.
+- **Tenant isolation/RBAC:** the historical Node integration test proves cross-workspace denial for selected legacy HTTP reads/writes. It does not prove exhaustive negative authorization across every Next.js route, server action, privileged role, and worker operation.
+- **OAuth/provider lifecycle:** OAuth code includes provider authorization and code exchange; X and TikTok use PKCE parameters. Revocation is best-effort; LinkedIn's branch explicitly relies on local disconnect rather than provider-side revocation. Authorized provider refresh/revoke/publish smoke tests remain unverified.
+- **Android:** `docs/ANDROID_APP.md` describes a debug-APK companion with device-local drafts only. Cross-device sync, live login, workspace data, calendar, scheduling, publishing, and analytics are not connected. The Android workflow is path-triggered or manually dispatched; no APK from this exact release candidate was verified.
+- **Operations:** `/api/health` returns process-level HTTP 200 without checking PostgreSQL, Redis, or worker readiness. `render.yaml` still uses `npm install` rather than deterministic `npm ci`. Backup restoration, worker recovery, monitoring/alerts, and deployment rollback drills remain unverified.
+
+### Release decision
+
+- No merge, deployment, real payment, or live social post was performed.
+- **Decision on 2026-10-31: NEITHER staging release approval nor production approval.** Continue isolated engineering tests only, with synthetic data, checkout disabled or provider test mode, and no live social posts or customer charges until the gates above are closed and exact-candidate CI plus operational evidence is available.
